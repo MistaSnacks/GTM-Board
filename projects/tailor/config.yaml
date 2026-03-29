@@ -1,0 +1,98 @@
+name: TAILOR
+url: https://gettailor.ai
+description: AI resume tailoring tool — GTM tracking
+
+# Points to your existing TAILOR .env for Supabase credentials
+project_env: /Users/admin/TAILOR/.env
+
+connectors:
+  supabase:
+    enabled: true
+  reddit:
+    enabled: false  # flip to true once you add Reddit API keys to .env
+    username: ""
+    subreddits: [resumes, jobs, careerguidance, cscareerquestions, recruitinghell, SideProject, startups]
+  google_search_console:
+    enabled: true
+    site_url: "sc-domain:gettailor.ai"
+  ga4:
+    enabled: false
+    property_id: ""
+  meta_ads:
+    enabled: true
+  google_ads:
+    enabled: true
+  metricool:
+    enabled: true
+    platforms: [linkedin, instagram, tiktok, facebook]
+    # twitter excluded — not connected in Metricool
+  stripe:
+    enabled: true
+    # Uses STRIPE_SECRET_KEY from TAILOR's .env.local (loaded via project_env)
+  zernio:
+    enabled: true
+    platforms: [linkedin, twitter, instagram, tiktok, reddit]
+    # Schedule → review → publish flow via gtm_zernio_* tools
+
+cadence:
+  linkedin:
+    posts_per_week: 3
+    schedule:
+      monday: educational
+      wednesday: narrative
+      friday: hot-take
+    comments_per_week:
+      min: 5
+      target: 10
+  reddit:
+    posts_per_week:
+      min: 0
+      target: 1
+    comments_per_week:
+      min: 5
+      target: 10
+    no_links_until: "2026-04-07"
+
+targets:
+  month_1:
+    linkedin_followers: 500
+    linkedin_impressions_per_post: 1000
+    linkedin_engagement_rate: 0.03
+    reddit_karma: 500
+    reddit_referral_traffic: 0
+    signups: 100
+    free_to_paid_pct: 0.05
+    meta_cpa: 8
+    google_cpa: 10
+    branded_search_volume: 50
+  month_3:
+    linkedin_followers: 2000
+    linkedin_impressions_per_post: 5000
+    linkedin_engagement_rate: 0.05
+    reddit_karma: 2000
+    reddit_referral_traffic: 200
+    signups: 500
+    free_to_paid_pct: 0.08
+    meta_cpa: 5
+    google_cpa: 6
+
+research:
+  competitors: [teal, rezi, kickresume, jobscan, resumeworded]
+  exa_search_queries:
+    - "AI resume builder marketing strategy 2026"
+    - "reddit resume tools discussion"
+    - "linkedin job search content strategy"
+
+creative:
+  brand_doc: /Users/admin/TAILOR/docs/launch-ad-creatives-2026-03.md
+  formats: ["1080x1080", "1080x1350", "1080x1920", "1200x628"]
+  accent_color: "#10B981"
+
+reference_docs:
+  - /Users/admin/TAILOR/docs/authority-building-playbook.md
+  - /Users/admin/TAILOR/docs/gtm-marketing-plan.md
+  - /Users/admin/TAILOR/docs/linkedin-reddit-cadence.md
+  - /Users/admin/TAILOR/docs/reddit-launch-posts-2026-03-10.md
+  - /Users/admin/TAILOR/docs/backlink-outreach-targets.md
+  - /Users/admin/TAILOR/docs/marketing-deep-dive-2026-03-10.md
+  - /Users/admin/TAILOR/docs/launch-ad-creatives-2026-03.md

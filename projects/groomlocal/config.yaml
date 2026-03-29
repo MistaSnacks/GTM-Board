@@ -1,0 +1,75 @@
+name: GROOMLOCAL
+url: https://groomlocal.com
+description: PNW dog grooming directory — expanding nationally
+
+# Pull Supabase creds from the main project repo as Tier 2 fallback
+project_env: /Users/admin/GroomingBook Directory/pnw-grooming-directory/.env.local
+
+connectors:
+  supabase:
+    enabled: true
+  reddit:
+    enabled: false
+    username: ""
+    subreddits: [doggrooming, dogs, petcare]
+  google_search_console:
+    enabled: true
+    site_url: "sc-domain:groomlocal.com"
+  ga4:
+    enabled: false
+    property_id: ""
+  meta_ads:
+    enabled: false
+  google_ads:
+    enabled: false
+  metricool:
+    enabled: false
+    platforms: [linkedin, instagram]
+  zernio:
+    enabled: false
+    platforms: [linkedin, instagram]
+
+cadence:
+  linkedin:
+    posts_per_week: 3
+    schedule:
+      monday: educational
+      wednesday: narrative
+      friday: hot-take
+    comments_per_week:
+      min: 5
+      target: 10
+  reddit:
+    posts_per_week:
+      min: 0
+      target: 1
+    comments_per_week:
+      min: 5
+      target: 10
+
+targets:
+  month_1:
+    signups: 50
+    listings: 100
+    linkedin_followers: 200
+  month_3:
+    signups: 200
+    listings: 500
+    linkedin_followers: 1000
+
+research:
+  competitors: [pawsh.app, groomscout.com, groomit.me]
+  exa_search_queries:
+    - "dog grooming directory 2026"
+    - "pet grooming near me SEO"
+    - "grooming business listing sites"
+
+creative:
+  brand_doc: /Users/admin/GroomingBook Directory/pnw-grooming-directory/brand-profile.json
+  formats: ["1080x1080", "1080x1350", "1080x1920", "1200x628"]
+  accent_color: "#10B981"
+
+reference_docs:
+  - /Users/admin/GroomingBook Directory/CLAUDE-PNW-Grooming-Directory-Plan.md
+  - /Users/admin/GroomingBook Directory/keyword-strategy.md
+  - /Users/admin/GroomingBook Directory/Competitive_Analysis_PNW_Pet_Directory.md
