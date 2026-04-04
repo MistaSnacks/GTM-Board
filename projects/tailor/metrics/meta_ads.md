@@ -1,6 +1,6 @@
 ---
 channel: meta_ads
-updated_at: '2026-04-01T23:01:48.335Z'
+updated_at: '2026-04-03T23:54:00.178Z'
 meta_ad_campaigns: 2
 meta_ad_spend: 80.23
 meta_ad_impressions: 15482

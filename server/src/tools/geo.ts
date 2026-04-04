@@ -1,31 +1,48 @@
-import fs from "node:fs";
-import path from "node:path";
-import matter from "gray-matter";
-import { getProjectDir } from "../lib/config.ts";
+import { supabase, getProjectId } from "../lib/supabase.ts";
 
-export function geoScore(params: {
+export async function geoScore(params: {
   project: string;
   metrics?: Record<string, number>;
-}): Record<string, unknown> {
-  const metricsDir = path.join(getProjectDir(params.project), "metrics");
-  const geoPath = path.join(metricsDir, "geo.md");
+}): Promise<Record<string, unknown>> {
+  const projectId = await getProjectId(params.project);
 
-  // Write metrics if provided
+  // Write metrics if provided — UPSERT into gtm_metrics with channel='geo'
   if (params.metrics) {
-    if (!fs.existsSync(metricsDir)) {
-      fs.mkdirSync(metricsDir, { recursive: true });
-    }
-    const frontmatter: Record<string, unknown> = {
-      channel: "geo",
-      updated_at: new Date().toISOString(),
-      ...params.metrics,
-    };
-    const output = matter.stringify("\n", frontmatter);
-    fs.writeFileSync(geoPath, output, "utf-8");
+    // Fetch existing data to merge
+    const { data: existing } = await supabase
+      .from("gtm_metrics")
+      .select("data")
+      .eq("project_id", projectId)
+      .eq("channel", "geo")
+      .single();
+
+    const existingData = (existing?.data as Record<string, unknown>) || {};
+    const mergedData = { ...existingData, ...params.metrics };
+
+    const { error } = await supabase
+      .from("gtm_metrics")
+      .upsert(
+        {
+          project_id: projectId,
+          channel: "geo",
+          data: mergedData,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "project_id,channel" }
+      );
+
+    if (error) throw new Error(`Failed to upsert geo metrics: ${error.message}`);
   }
 
   // Read current geo metrics
-  if (!fs.existsSync(geoPath)) {
+  const { data: row, error } = await supabase
+    .from("gtm_metrics")
+    .select("data, updated_at")
+    .eq("project_id", projectId)
+    .eq("channel", "geo")
+    .single();
+
+  if (error || !row) {
     return {
       project: params.project,
       platforms: [],
@@ -33,16 +50,11 @@ export function geoScore(params: {
     };
   }
 
-  const raw = fs.readFileSync(geoPath, "utf-8");
-  const parsed = matter(raw);
-  const data = parsed.data as Record<string, unknown>;
-
-  // Re-group flat keys by platform for readability
-  const platforms: Record<string, Record<string, number>> = {};
+  const data = row.data as Record<string, unknown>;
   const flatMetrics: Record<string, number> = {};
+  const platforms: Record<string, Record<string, number>> = {};
 
   for (const [key, value] of Object.entries(data)) {
-    if (key === "channel" || key === "updated_at") continue;
     if (typeof value !== "number") continue;
     flatMetrics[key] = value;
 
@@ -58,52 +70,50 @@ export function geoScore(params: {
 
   return {
     project: params.project,
-    updated_at: data.updated_at,
+    updated_at: row.updated_at,
     flat_metrics: flatMetrics,
     platforms,
   };
 }
 
-export function geoTrend(params: {
+export async function geoTrend(params: {
   project: string;
   periods?: number;
-}): Record<string, unknown> {
+}): Promise<Record<string, unknown>> {
+  const projectId = await getProjectId(params.project);
   const periods = params.periods || 4;
-  const snapshotsDir = path.join(getProjectDir(params.project), "metrics", "snapshots");
 
-  if (!fs.existsSync(snapshotsDir)) {
-    return { project: params.project, trends: [], note: "No snapshots available" };
-  }
+  // Get snapshots ordered by date
+  const { data: snapshots, error } = await supabase
+    .from("gtm_snapshots")
+    .select("id, snapshot_date, data")
+    .eq("project_id", projectId)
+    .order("snapshot_date", { ascending: true });
 
-  const files = fs.readdirSync(snapshotsDir).filter((f) => f.endsWith(".md")).sort();
+  if (error) throw new Error(`Failed to query snapshots: ${error.message}`);
 
-  if (files.length < 2) {
+  if (!snapshots || snapshots.length < 2) {
     return { project: params.project, trends: [], note: "Need at least 2 snapshots for trends" };
   }
 
-  const latestFile = files[files.length - 1];
-  const previousIdx = Math.max(0, files.length - 1 - periods);
-  const previousFile = files[previousIdx];
+  const latestSnapshot = snapshots[snapshots.length - 1];
+  const previousIdx = Math.max(0, snapshots.length - 1 - periods);
+  const previousSnapshot = snapshots[previousIdx];
 
-  const readSnapshot = (file: string): Record<string, number> => {
-    try {
-      const raw = fs.readFileSync(path.join(snapshotsDir, file), "utf-8");
-      const parsed = matter(raw);
-      const data = parsed.data as Record<string, unknown>;
-      const metrics = (data.metrics as Record<string, Record<string, number | null>>) || {};
-      const geoMetrics = metrics.geo || {};
-      const result: Record<string, number> = {};
-      for (const [key, value] of Object.entries(geoMetrics)) {
-        if (typeof value === "number") result[key] = value;
-      }
-      return result;
-    } catch {
-      return {};
+  const extractGeoMetrics = (snap: Record<string, unknown>): Record<string, number> => {
+    const data = snap.data as Record<string, unknown> | null;
+    if (!data) return {};
+    const metrics = (data.metrics as Record<string, Record<string, number | null>>) || {};
+    const geoMetrics = metrics.geo || {};
+    const result: Record<string, number> = {};
+    for (const [key, value] of Object.entries(geoMetrics)) {
+      if (typeof value === "number") result[key] = value;
     }
+    return result;
   };
 
-  const latest = readSnapshot(latestFile);
-  const previous = readSnapshot(previousFile);
+  const latest = extractGeoMetrics(latestSnapshot);
+  const previous = extractGeoMetrics(previousSnapshot);
 
   // Compare _score keys
   const trends: Array<{
@@ -132,8 +142,8 @@ export function geoTrend(params: {
 
   return {
     project: params.project,
-    latest_snapshot: latestFile.replace(".md", ""),
-    previous_snapshot: previousFile.replace(".md", ""),
+    latest_snapshot: (latestSnapshot.snapshot_date as string),
+    previous_snapshot: (previousSnapshot.snapshot_date as string),
     trends,
   };
 }

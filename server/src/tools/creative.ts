@@ -1,13 +1,13 @@
 import { updateCard } from "./board.ts";
 
-export function linkCreative(params: {
+export async function linkCreative(params: {
   project: string;
   card_id: string;
   artboard_id: string;
   formats?: string[];
   copy?: string;
   creative_status?: "draft" | "approved" | "distributed";
-}): { id: string; paper_artboard: string; creative_status: string; formats: string[] } {
+}): Promise<{ id: string; paper_artboard: string; creative_status: string; formats: string[] }> {
   const updates: Record<string, unknown> = {
     paper_artboard: params.artboard_id,
   };
@@ -24,7 +24,7 @@ export function linkCreative(params: {
     updates.copy = params.copy;
   }
 
-  updateCard({
+  await updateCard({
     project: params.project,
     card_id: params.card_id,
     updates,

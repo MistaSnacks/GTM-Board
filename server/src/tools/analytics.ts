@@ -1,57 +1,62 @@
-import fs from "node:fs";
-import path from "node:path";
-import matter from "gray-matter";
-import { getProjectDir, loadProjectConfig } from "../lib/config.ts";
+import { supabase, getProjectId } from "../lib/supabase.ts";
+import { loadProjectConfig } from "../lib/config.ts";
 import { refreshAll, snapshot } from "./metrics.ts";
 import { alertCheck } from "./alerts.ts";
 import { geoScore } from "./geo.ts";
-import { listCards } from "./board.ts";
-import { addCard } from "./board.ts";
+import { listCards, addCard } from "./board.ts";
 import { cadenceStatus } from "./cadence.ts";
 
-export function trendAnalysis(params: {
+/**
+ * Flatten a snapshot's data JSONB ({ channel: { metric: value } } → { channel_metric: value }).
+ */
+function flattenSnapshotData(
+  data: Record<string, Record<string, number | null>> | null | undefined
+): Record<string, number> {
+  const flat: Record<string, number> = {};
+  if (!data) return flat;
+  for (const [channel, channelMetrics] of Object.entries(data)) {
+    if (typeof channelMetrics !== "object" || channelMetrics === null) continue;
+    for (const [key, value] of Object.entries(channelMetrics)) {
+      if (typeof value === "number") {
+        flat[`${channel}_${key}`] = value;
+      }
+    }
+  }
+  return flat;
+}
+
+export async function trendAnalysis(params: {
   project: string;
   periods?: number;
-}): Record<string, unknown> {
+}): Promise<Record<string, unknown>> {
   const periods = params.periods || 4;
-  const snapshotsDir = path.join(getProjectDir(params.project), "metrics", "snapshots");
+  const projectId = await getProjectId(params.project);
 
-  if (!fs.existsSync(snapshotsDir)) {
-    return { project: params.project, trends: [], note: "No snapshots available" };
+  // Fetch all snapshots ordered by date
+  const { data: snapshots, error } = await supabase
+    .from("gtm_snapshots")
+    .select("snapshot_date, data")
+    .eq("project_id", projectId)
+    .order("snapshot_date", { ascending: true });
+
+  if (error) throw new Error(`Failed to query snapshots: ${error.message}`);
+
+  if (!snapshots || snapshots.length < 2) {
+    return {
+      project: params.project,
+      trends: [],
+      note: snapshots?.length === 0
+        ? "No snapshots available"
+        : "Need at least 2 snapshots for trends",
+    };
   }
 
-  const files = fs.readdirSync(snapshotsDir).filter((f) => f.endsWith(".md")).sort();
+  const latestRow = snapshots[snapshots.length - 1];
+  const previousIdx = Math.max(0, snapshots.length - 1 - periods);
+  const previousRow = snapshots[previousIdx];
 
-  if (files.length < 2) {
-    return { project: params.project, trends: [], note: "Need at least 2 snapshots for trends" };
-  }
-
-  const latestFile = files[files.length - 1];
-  const previousIdx = Math.max(0, files.length - 1 - periods);
-  const previousFile = files[previousIdx];
-
-  const flattenSnapshot = (file: string): Record<string, number> => {
-    try {
-      const raw = fs.readFileSync(path.join(snapshotsDir, file), "utf-8");
-      const parsed = matter(raw);
-      const data = parsed.data as Record<string, unknown>;
-      const metrics = (data.metrics as Record<string, Record<string, number | null>>) || {};
-      const flat: Record<string, number> = {};
-      for (const [channel, channelMetrics] of Object.entries(metrics)) {
-        for (const [key, value] of Object.entries(channelMetrics)) {
-          if (typeof value === "number") {
-            flat[`${channel}_${key}`] = value;
-          }
-        }
-      }
-      return flat;
-    } catch {
-      return {};
-    }
-  };
-
-  const latest = flattenSnapshot(latestFile);
-  const previous = flattenSnapshot(previousFile);
+  const latest = flattenSnapshotData(latestRow.data as Record<string, Record<string, number | null>>);
+  const previous = flattenSnapshotData(previousRow.data as Record<string, Record<string, number | null>>);
 
   const allKeys = new Set([...Object.keys(latest), ...Object.keys(previous)]);
   const trends: Array<{
@@ -67,7 +72,10 @@ export function trendAnalysis(params: {
     const current = latest[key] ?? 0;
     const prev = previous[key] ?? 0;
     const delta = current - prev;
-    const pct_change = prev !== 0 ? Math.round(((current - prev) / Math.abs(prev)) * 10000) / 100 : null;
+    const pct_change =
+      prev !== 0
+        ? Math.round(((current - prev) / Math.abs(prev)) * 10000) / 100
+        : null;
     trends.push({
       metric: key,
       current,
@@ -80,34 +88,34 @@ export function trendAnalysis(params: {
 
   return {
     project: params.project,
-    latest_snapshot: latestFile.replace(".md", ""),
-    previous_snapshot: previousFile.replace(".md", ""),
+    latest_snapshot: latestRow.snapshot_date,
+    previous_snapshot: previousRow.snapshot_date,
     trends,
   };
 }
 
-export function funnelReport(params: { project: string }): Record<string, unknown> {
-  // Read all connector metric files (NOT snapshots)
-  const metricsDir = path.join(getProjectDir(params.project), "metrics");
+export async function funnelReport(params: {
+  project: string;
+}): Promise<Record<string, unknown>> {
+  const projectId = await getProjectId(params.project);
+
+  // Fetch all metric rows for this project
+  const { data: metricRows, error } = await supabase
+    .from("gtm_metrics")
+    .select("channel, data")
+    .eq("project_id", projectId);
+
+  if (error) throw new Error(`Failed to query metrics: ${error.message}`);
+
   const allMetrics: Record<string, number> = {};
   const unmappedMetrics: string[] = [];
 
-  if (fs.existsSync(metricsDir)) {
-    const files = fs.readdirSync(metricsDir).filter((f) => f.endsWith(".md"));
-    for (const file of files) {
-      try {
-        const raw = fs.readFileSync(path.join(metricsDir, file), "utf-8");
-        const parsed = matter(raw);
-        const data = parsed.data as Record<string, unknown>;
-        for (const [key, value] of Object.entries(data)) {
-          if (key === "channel" || key === "updated_at") continue;
-          if (typeof value === "number") {
-            // Sum across channels
-            allMetrics[key] = (allMetrics[key] || 0) + value;
-          }
-        }
-      } catch {
-        // skip
+  for (const row of metricRows ?? []) {
+    const data = row.data as Record<string, unknown> | null;
+    if (!data) continue;
+    for (const [key, value] of Object.entries(data)) {
+      if (typeof value === "number") {
+        allMetrics[key] = (allMetrics[key] || 0) + value;
       }
     }
   }
@@ -130,12 +138,12 @@ export function funnelReport(params: { project: string }): Record<string, unknow
   let previousValue: number | null = null;
 
   for (const stage of stageOrder) {
-    // Find the raw key that maps to this stage
     const rawKey = Object.entries(funnelMap).find(([, v]) => v === stage)?.[0];
-    const value = rawKey ? (allMetrics[rawKey] || 0) : 0;
-    const conversion = previousValue !== null && previousValue > 0
-      ? Math.round((value / previousValue) * 10000) / 100
-      : null;
+    const value = rawKey ? allMetrics[rawKey] || 0 : 0;
+    const conversion =
+      previousValue !== null && previousValue > 0
+        ? Math.round((value / previousValue) * 10000) / 100
+        : null;
     stages.push({ stage, value, conversion_from_previous: conversion });
     previousValue = value;
   }
@@ -155,32 +163,34 @@ export function funnelReport(params: { project: string }): Record<string, unknow
   };
 }
 
-export async function dailyBrief(params: { project: string }): Promise<Record<string, unknown>> {
-  const config = loadProjectConfig(params.project);
+export async function dailyBrief(params: {
+  project: string;
+}): Promise<Record<string, unknown>> {
+  const config = await loadProjectConfig(params.project);
   const date = new Date().toISOString().slice(0, 10);
 
   // 1. Refresh all metrics
   const refreshResults = await refreshAll({ project: params.project });
 
   // 1b. Take snapshot for trend tracking
-  const snapshotResult = snapshot({ project: params.project });
+  const snapshotResult = await snapshot({ project: params.project });
 
   // 2. Check alerts
-  const alerts = alertCheck({ project: params.project });
+  const alerts = await alertCheck({ project: params.project });
 
   // 3. Trend analysis
-  const trends = trendAnalysis({ project: params.project });
+  const trends = await trendAnalysis({ project: params.project });
 
   // 4. GEO score
-  const geo = geoScore({ project: params.project });
+  const geo = await geoScore({ project: params.project });
 
   // 5. Board state
-  const allCards = listCards({ project: params.project });
+  const allCards = await listCards({ project: params.project });
 
   // 6. Cadence
   let cadence: Record<string, unknown> = {};
   try {
-    cadence = cadenceStatus({ project: params.project });
+    cadence = await cadenceStatus({ project: params.project });
   } catch {
     cadence = { error: "No cadence data available" };
   }
@@ -192,12 +202,6 @@ export async function dailyBrief(params: { project: string }): Promise<Record<st
     const column = c.column as string;
     return targetDate && targetDate < today && column !== "done";
   });
-
-  // 8. Write brief file
-  const reportsDir = path.join(getProjectDir(params.project), "daily-reports");
-  if (!fs.existsSync(reportsDir)) {
-    fs.mkdirSync(reportsDir, { recursive: true });
-  }
 
   // Build working/not-working from trends
   const trendList = (trends.trends as Array<Record<string, unknown>>) || [];
@@ -232,23 +236,12 @@ ${declining.length > 0 ? declining.map((t) => `- Review declining ${t.metric}`).
 ${alerts.alerts.length === 0 && overdueCards.length === 0 && declining.length === 0 ? "- All clear — focus on scheduled work" : ""}
 `;
 
-  const frontmatter: Record<string, unknown> = {
-    date,
-    project: params.project,
-    alerts_count: alerts.alerts.length,
-    overdue_count: overdueCards.length,
-  };
-
-  const filePath = path.join(reportsDir, `${date}-daily-brief.md`);
-  const output = matter.stringify(briefContent, frontmatter);
-  fs.writeFileSync(filePath, output, "utf-8");
-
-  // 10. Auto-create cards for alerts
+  // Auto-create cards for alerts
   const createdCards: Array<{ id: string; path: string }> = [];
   if (config.briefs?.auto_create_cards !== false) {
     for (const alert of alerts.alerts) {
       try {
-        const card = addCard({
+        const card = await addCard({
           project: params.project,
           title: `Alert: ${alert.metric} ${alert.direction}`,
           column: "backlog",
@@ -267,7 +260,8 @@ ${alerts.alerts.length === 0 && overdueCards.length === 0 && declining.length ==
   return {
     project: params.project,
     date,
-    brief_file: filePath,
+    brief_file: null,
+    brief_text: briefContent,
     refresh: {
       channels_refreshed: refreshResults.results.length,
       errors: refreshResults.errors,

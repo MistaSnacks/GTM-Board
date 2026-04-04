@@ -6,12 +6,12 @@ import ContentClient from "./content-client";
 export const dynamic = "force-dynamic";
 
 export default async function ContentPage() {
-  const projects = getProjects();
+  const projects = await getProjects();
   const activeProject = await getActiveProject();
-  const config = getConfig(activeProject);
-  const stats = getContentPipelineStats(activeProject);
-  const postCards = getFilteredCards(activeProject, { type: "post" });
-  const cadence = getCadence(activeProject);
+  const config = await getConfig(activeProject);
+  const stats = await getContentPipelineStats(activeProject);
+  const postCards = await getFilteredCards(activeProject, { type: "post" });
+  const cadence = await getCadence(activeProject);
 
   return (
     <PageShell projects={projects} activeProject={activeProject}>

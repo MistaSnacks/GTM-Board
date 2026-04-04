@@ -6,13 +6,13 @@ import RevenueClient from "./revenue-client";
 export const dynamic = "force-dynamic";
 
 export default async function RevenuePage() {
-  const projects = getProjects();
+  const projects = await getProjects();
   const activeProject = await getActiveProject();
-  const config = getConfig(activeProject);
-  const metrics = getMetrics(activeProject);
+  const config = await getConfig(activeProject);
+  const metrics = await getMetrics(activeProject);
   const stripeMetrics = metrics.channels.stripe;
   const supabaseMetrics = metrics.channels.supabase;
-  const stripeHistory = getChannelHistory(activeProject, "stripe", 30);
+  const stripeHistory = await getChannelHistory(activeProject, "stripe", 30);
   const stripeChart = buildChartData(stripeHistory, ["mrr", "active_subscriptions", "trialing_subscriptions", "churned_30d"]);
 
   return (

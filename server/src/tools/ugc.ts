@@ -1,10 +1,7 @@
-import fs from "node:fs";
-import path from "node:path";
-import { getProjectDir } from "../lib/config.ts";
-import { addCard, updateCard, moveCard, listCards } from "./board.ts";
-import { readCard, writeCard } from "../lib/markdown.ts";
+import { supabase, getProjectId } from "../lib/supabase.ts";
+import { addCard, updateCard, moveCard } from "./board.ts";
 
-export function createUgcBrief(params: {
+export async function createUgcBrief(params: {
   project: string;
   title: string;
   creator: string;
@@ -13,8 +10,8 @@ export function createUgcBrief(params: {
   due_date?: string;
   description?: string;
   tags?: string[];
-}): { id: string; path: string } {
-  const card = addCard({
+}): Promise<{ id: string; path: string }> {
+  const card = await addCard({
     project: params.project,
     title: params.title,
     column: "backlog",
@@ -25,7 +22,7 @@ export function createUgcBrief(params: {
     tags: params.tags,
   });
 
-  updateCard({
+  await updateCard({
     project: params.project,
     card_id: card.id,
     updates: {
@@ -37,55 +34,58 @@ export function createUgcBrief(params: {
     },
   });
 
-  return { id: card.id, path: card.path };
+  return { id: card.id, path: "supabase" };
 }
 
-export function listUgcBriefs(params: {
+export async function listUgcBriefs(params: {
   project: string;
   approval_status?: string;
   creator?: string;
-}): Array<Record<string, unknown>> {
-  const allCards = listCards({ project: params.project, type: "ugc" });
+}): Promise<Array<Record<string, unknown>>> {
+  const projectId = await getProjectId(params.project);
+
+  const { data: rows, error } = await supabase
+    .from("gtm_cards")
+    .select("*")
+    .eq("project_id", projectId)
+    .or("type.eq.ugc,channel.eq.ugc");
+
+  if (error) throw new Error(`Failed to list UGC briefs: ${error.message}`);
+
   const results: Array<Record<string, unknown>> = [];
 
-  const boardDir = path.join(getProjectDir(params.project), "board");
+  for (const row of rows ?? []) {
+    const meta = (row.metadata ?? {}) as Record<string, unknown>;
 
-  for (const card of allCards) {
-    const column = card.column as string;
-    const cardId = card.id as string;
-    const cardPath = path.join(boardDir, column, `${cardId}.md`);
+    // Filter by approval_status if provided
+    if (params.approval_status && meta.approval_status !== params.approval_status) continue;
 
-    if (!fs.existsSync(cardPath)) continue;
-
-    const full = readCard(cardPath);
-    const data = full.data;
-
-    if (params.approval_status && data.approval_status !== params.approval_status) continue;
-    if (params.creator && data.creator !== params.creator) continue;
+    // Filter by creator if provided
+    if (params.creator && meta.creator !== params.creator) continue;
 
     results.push({
-      id: cardId,
-      title: data.title,
-      column,
-      creator: data.creator,
-      creator_handle: data.creator_handle,
-      deliverable_type: data.deliverable_type,
-      approval_status: data.approval_status,
-      asset_url: data.asset_url,
-      due_date: data.due_date || data.target_date,
+      id: row.slug,
+      title: row.title,
+      column: row.column_name,
+      creator: meta.creator ?? null,
+      creator_handle: meta.creator_handle ?? null,
+      deliverable_type: meta.deliverable_type ?? null,
+      approval_status: meta.approval_status ?? null,
+      asset_url: meta.asset_url ?? null,
+      due_date: meta.due_date || meta.target_date || null,
     });
   }
 
   return results;
 }
 
-export function approveContent(params: {
+export async function approveContent(params: {
   project: string;
   card_id: string;
   status: "approved" | "rejected";
   asset_url?: string;
   notes?: string;
-}): { id: string; approval_status: string; moved_to?: string } {
+}): Promise<{ id: string; approval_status: string; moved_to?: string }> {
   const updates: Record<string, unknown> = {
     approval_status: params.status,
   };
@@ -94,7 +94,7 @@ export function approveContent(params: {
     updates.asset_url = params.asset_url;
   }
 
-  updateCard({
+  await updateCard({
     project: params.project,
     card_id: params.card_id,
     updates,
@@ -103,7 +103,7 @@ export function approveContent(params: {
   let movedTo: string | undefined;
 
   if (params.status === "approved") {
-    moveCard({
+    await moveCard({
       project: params.project,
       card_id: params.card_id,
       to_column: "preparing",
@@ -112,17 +112,28 @@ export function approveContent(params: {
   }
 
   if (params.status === "rejected" && params.notes) {
-    const boardDir = path.join(getProjectDir(params.project), "board");
-    const columns = ["backlog", "preparing", "live", "measuring", "done"];
-    for (const col of columns) {
-      const cardPath = path.join(boardDir, col, `${params.card_id}.md`);
-      if (fs.existsSync(cardPath)) {
-        const card = readCard(cardPath);
-        const newContent = card.content + `\n\n## Rejection Notes\n${params.notes}\n`;
-        writeCard(cardPath, card.data, newContent);
-        break;
-      }
-    }
+    const projectId = await getProjectId(params.project);
+
+    // Fetch the card's current body
+    const { data: card, error: fetchErr } = await supabase
+      .from("gtm_cards")
+      .select("body")
+      .eq("project_id", projectId)
+      .eq("slug", params.card_id)
+      .single();
+
+    if (fetchErr || !card) throw new Error(`Card not found: ${params.card_id}`);
+
+    const existingBody = card.body ?? "";
+    const newBody = existingBody + `\n\n## Rejection Notes\n${params.notes}\n`;
+
+    const { error: updateErr } = await supabase
+      .from("gtm_cards")
+      .update({ body: newBody, updated_at: new Date().toISOString() })
+      .eq("project_id", projectId)
+      .eq("slug", params.card_id);
+
+    if (updateErr) throw new Error(`Failed to append rejection notes: ${updateErr.message}`);
   }
 
   return {

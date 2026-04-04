@@ -1,7 +1,5 @@
-import fs from "node:fs";
-import path from "node:path";
-import matter from "gray-matter";
-import { getProjectDir, loadProjectConfig } from "../lib/config.ts";
+import { supabase, getProjectId } from "../lib/supabase.ts";
+import { loadProjectConfig } from "../lib/config.ts";
 
 interface Alert {
   metric: string;
@@ -10,33 +8,32 @@ interface Alert {
   direction: "below_min" | "above_max" | "missing";
 }
 
-export function alertCheck(params: { project: string }): { alerts: Alert[] } {
-  const config = loadProjectConfig(params.project);
+export async function alertCheck(params: { project: string }): Promise<{ alerts: Alert[] }> {
+  const config = await loadProjectConfig(params.project);
   const alertConfig = config.alerts;
 
   if (!alertConfig) {
     return { alerts: [] };
   }
 
-  // Read all metrics files (flat key-value)
-  const metricsDir = path.join(getProjectDir(params.project), "metrics");
-  const allMetrics: Record<string, number> = {};
+  const projectId = await getProjectId(params.project);
 
-  if (fs.existsSync(metricsDir)) {
-    const files = fs.readdirSync(metricsDir).filter((f) => f.endsWith(".md"));
-    for (const file of files) {
-      try {
-        const raw = fs.readFileSync(path.join(metricsDir, file), "utf-8");
-        const parsed = matter(raw);
-        const data = parsed.data as Record<string, unknown>;
-        for (const [key, value] of Object.entries(data)) {
-          if (key === "channel" || key === "updated_at") continue;
-          if (typeof value === "number") {
-            allMetrics[key] = value;
-          }
-        }
-      } catch {
-        // skip unparseable files
+  // Query all metrics for this project
+  const { data: rows, error } = await supabase
+    .from("gtm_metrics")
+    .select("channel, data, updated_at")
+    .eq("project_id", projectId);
+
+  if (error) throw new Error(`Failed to query metrics: ${error.message}`);
+
+  // Flatten all metrics from data JSONB into a single map
+  const allMetrics: Record<string, number> = {};
+  for (const row of rows || []) {
+    const data = row.data as Record<string, unknown> | null;
+    if (!data) continue;
+    for (const [key, value] of Object.entries(data)) {
+      if (typeof value === "number") {
+        allMetrics[key] = value;
       }
     }
   }
@@ -50,9 +47,7 @@ export function alertCheck(params: { project: string }): { alerts: Alert[] } {
     const isMax = alertKey.endsWith("_max");
     if (!isMin && !isMax) continue;
 
-    const metricKey = isMin
-      ? alertKey.slice(0, -4) // remove _min
-      : alertKey.slice(0, -4); // remove _max
+    const metricKey = alertKey.slice(0, -4); // remove _min or _max
 
     const actual = allMetrics[metricKey];
 

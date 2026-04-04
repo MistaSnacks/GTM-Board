@@ -6,14 +6,14 @@ import SEOClient from "./seo-client";
 export const dynamic = "force-dynamic";
 
 export default async function SEOPage() {
-  const projects = getProjects();
+  const projects = await getProjects();
   const activeProject = await getActiveProject();
-  const config = getConfig(activeProject);
-  const metrics = getMetrics(activeProject);
+  const config = await getConfig(activeProject);
+  const metrics = await getMetrics(activeProject);
   const seoMetrics = metrics.channels["search-console"] || metrics.channels["google_search_console"];
-  const history = getChannelHistory(activeProject, "search-console", 30);
+  const history = await getChannelHistory(activeProject, "search-console", 30);
   const chartData = buildChartData(history, ["organic_clicks", "branded_search_volume", "avg_position", "total_impressions"]);
-  const seoCards = getFilteredCards(activeProject, { channel: "seo" });
+  const seoCards = await getFilteredCards(activeProject, { channel: "seo" });
 
   return (
     <PageShell projects={projects} activeProject={activeProject}>

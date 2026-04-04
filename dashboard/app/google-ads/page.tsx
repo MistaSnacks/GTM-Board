@@ -6,14 +6,14 @@ import GoogleAdsClient from "./google-ads-client";
 export const dynamic = "force-dynamic";
 
 export default async function GoogleAdsPage() {
-  const projects = getProjects();
+  const projects = await getProjects();
   const activeProject = await getActiveProject();
-  const config = getConfig(activeProject);
-  const metrics = getMetrics(activeProject);
+  const config = await getConfig(activeProject);
+  const metrics = await getMetrics(activeProject);
   const adMetrics = metrics.channels.google_ads;
-  const history = getChannelHistory(activeProject, "google_ads", 14);
+  const history = await getChannelHistory(activeProject, "google_ads", 14);
   const chartData = buildChartData(history, ["google_ad_spend", "google_ad_clicks", "google_ad_conversions", "google_ad_cpa", "google_ad_ctr"]);
-  const adCards = getFilteredCards(activeProject, { channel: "google" });
+  const adCards = await getFilteredCards(activeProject, { channel: "google" });
 
   return (
     <PageShell projects={projects} activeProject={activeProject}>

@@ -1,8 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
-import YAML from "yaml";
 import dotenv from "dotenv";
-import type { ProjectConfig, CadenceConfig, ConnectorConfig, GeoConfig, AlertConfig, UgcConfig, BriefsConfig } from "../connectors/types.ts";
+import { supabase } from "./supabase.ts";
+import type {
+  ProjectConfig,
+  CadenceConfig,
+  ConnectorConfig,
+  GeoConfig,
+  AlertConfig,
+  UgcConfig,
+  BriefsConfig,
+} from "../connectors/types.ts";
 
 const GTM_HOME = process.env.GTM_HOME || "/Users/admin/gtm-board";
 
@@ -10,20 +18,29 @@ export function getGtmHome(): string {
   return GTM_HOME;
 }
 
+/**
+ * Legacy helper — only used for resolving .env file paths for connector credentials.
+ * Not used for data storage (that's in Supabase now).
+ */
 export function getProjectDir(projectName: string): string {
   return path.join(GTM_HOME, "projects", projectName);
 }
 
-export function loadProjectConfig(projectName: string): ProjectConfig {
-  const projectDir = getProjectDir(projectName);
-  const configPath = path.join(projectDir, "config.yaml");
+export async function loadProjectConfig(
+  projectName: string
+): Promise<ProjectConfig> {
+  const { data, error } = await supabase
+    .from("gtm_projects")
+    .select("*")
+    .eq("slug", projectName)
+    .single();
 
-  if (!fs.existsSync(configPath)) {
-    throw new Error(`Project config not found: ${configPath}`);
+  if (error || !data) {
+    throw new Error(`Project not found in Supabase: ${projectName}`);
   }
 
-  const raw = fs.readFileSync(configPath, "utf-8");
-  const config = YAML.parse(raw) as Record<string, unknown>;
+  const config = (data.config as Record<string, unknown>) || {};
+  const projectDir = getProjectDir(projectName);
 
   // Build scoped env vars (no process.env mutation)
   const envVars: Record<string, string> = {};
@@ -47,11 +64,13 @@ export function loadProjectConfig(projectName: string): ProjectConfig {
   }
 
   return {
-    name: (config.name as string) || projectName,
+    name: data.name || projectName,
     dataDir: projectDir,
     envPath: projectEnv || localEnv,
-    connectors: (config.connectors as Record<string, ConnectorConfig>) || {},
-    targets: (config.targets as Record<string, Record<string, number>>) || {},
+    connectors:
+      (config.connectors as Record<string, ConnectorConfig>) || {},
+    targets:
+      (config.targets as Record<string, Record<string, number>>) || {},
     cadence: (config.cadence as CadenceConfig) || {
       linkedin: {
         posts_per_week: 0,
@@ -80,11 +99,15 @@ export function resolveProject(project?: string): string {
   return resolved.toLowerCase();
 }
 
-export function listProjects(): string[] {
-  const projectsDir = path.join(GTM_HOME, "projects");
-  if (!fs.existsSync(projectsDir)) return [];
-  return fs
-    .readdirSync(projectsDir, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => d.name);
+export async function listProjects(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("gtm_projects")
+    .select("slug")
+    .order("slug");
+
+  if (error) {
+    throw new Error(`Failed to list projects: ${error.message}`);
+  }
+
+  return (data || []).map((row: { slug: string }) => row.slug);
 }

@@ -6,10 +6,10 @@ import KanbanClient from "./kanban-client";
 export const dynamic = "force-dynamic";
 
 export default async function KanbanPage() {
-  const projects = getProjects();
+  const projects = await getProjects();
   const activeProject = await getActiveProject();
-  const config = getConfig(activeProject);
-  const board = getBoard(activeProject);
+  const config = await getConfig(activeProject);
+  const board = await getBoard(activeProject);
 
   return (
     <PageShell projects={projects} activeProject={activeProject}>

@@ -9,7 +9,7 @@ export async function POST(
   { params }: { params: Promise<{ channel: string }> }
 ) {
   const { channel } = await params;
-  const projects = getProjects();
+  const projects = await getProjects();
   const project = projects[0] || "tailor";
 
   try {

@@ -1,7 +1,5 @@
-import fs from "node:fs";
-import path from "node:path";
-import matter from "gray-matter";
-import { getProjectDir, loadProjectConfig } from "../lib/config.ts";
+import { supabase, getProjectId } from "../lib/supabase.ts";
+import { loadProjectConfig } from "../lib/config.ts";
 import { listCards } from "./board.ts";
 import { cadenceStatus } from "./cadence.ts";
 import type { Connector, ProjectConfig, ChannelMetrics } from "../connectors/types.ts";
@@ -34,68 +32,80 @@ function getConnector(name: string, enabled: boolean): Connector {
   }
 }
 
-function readLatestMetrics(project: string): Record<string, Record<string, number | null>> {
-  const metricsDir = path.join(getProjectDir(project), "metrics");
+/**
+ * Read the latest metrics for every channel from gtm_metrics.
+ */
+async function readLatestMetrics(
+  projectId: string
+): Promise<Record<string, Record<string, number | null>>> {
+  const { data, error } = await supabase
+    .from("gtm_metrics")
+    .select("channel, data")
+    .eq("project_id", projectId);
+
+  if (error) {
+    throw new Error(`Failed to read metrics: ${error.message}`);
+  }
+
   const result: Record<string, Record<string, number | null>> = {};
-
-  if (!fs.existsSync(metricsDir)) return result;
-
-  const files = fs.readdirSync(metricsDir).filter((f) => f.endsWith(".md"));
-  for (const file of files) {
-    try {
-      const raw = fs.readFileSync(path.join(metricsDir, file), "utf-8");
-      const parsed = matter(raw);
-      const data = parsed.data as Record<string, unknown>;
-      const channel = (data.channel as string) || file.replace(".md", "");
-      const metrics: Record<string, number | null> = {};
-      for (const [key, value] of Object.entries(data)) {
-        if (key === "channel" || key === "updated_at") continue;
-        if (typeof value === "number" || value === null) {
-          metrics[key] = value as number | null;
-        }
-      }
-      result[channel] = metrics;
-    } catch {
-      // skip
-    }
+  for (const row of data || []) {
+    const channel = row.channel as string;
+    const metrics = (row.data as Record<string, number | null>) || {};
+    result[channel] = metrics;
   }
 
   return result;
 }
 
-export function status(params: { project: string }): Record<string, unknown> {
+export async function status(params: {
+  project: string;
+}): Promise<Record<string, unknown>> {
+  const projectId = await getProjectId(params.project);
+
+  // Board summary: count cards per column from gtm_cards
+  const { data: cardCounts, error: cardError } = await supabase
+    .from("gtm_cards")
+    .select("column_name")
+    .eq("project_id", projectId);
+
   const boardSummary: Record<string, number> = {};
   for (const col of COLUMNS) {
-    const cards = listCards({ project: params.project, column: col });
-    boardSummary[col] = cards.length;
+    boardSummary[col] = 0;
   }
-
-  let cadence: Record<string, unknown> = {};
-  try {
-    cadence = cadenceStatus({ project: params.project });
-  } catch {
-    cadence = { error: "No cadence data available" };
-  }
-
-  let latestKpis: Record<string, unknown> | null = null;
-  const snapshotsDir = path.join(getProjectDir(params.project), "metrics", "snapshots");
-  if (fs.existsSync(snapshotsDir)) {
-    const files = fs.readdirSync(snapshotsDir).filter((f) => f.endsWith(".md")).sort();
-    if (files.length > 0) {
-      const latestFile = files[files.length - 1];
-      try {
-        const raw = fs.readFileSync(path.join(snapshotsDir, latestFile), "utf-8");
-        const parsed = matter(raw);
-        latestKpis = parsed.data as Record<string, unknown>;
-      } catch {
-        // ignore
+  if (!cardError && cardCounts) {
+    for (const row of cardCounts) {
+      const col = row.column_name as string;
+      if (col in boardSummary) {
+        boardSummary[col]++;
       }
     }
   }
 
+  // Cadence
+  let cadence: Record<string, unknown> = {};
+  try {
+    cadence = await cadenceStatus({ project: params.project });
+  } catch {
+    cadence = { error: "No cadence data available" };
+  }
+
+  // Latest snapshot
+  let latestKpis: Record<string, unknown> | null = null;
+  const { data: snapshotRows } = await supabase
+    .from("gtm_snapshots")
+    .select("data, snapshot_date")
+    .eq("project_id", projectId)
+    .order("snapshot_date", { ascending: false })
+    .limit(1);
+
+  if (snapshotRows && snapshotRows.length > 0) {
+    latestKpis = snapshotRows[0].data as Record<string, unknown>;
+  }
+
+  // Config
   let config: Record<string, unknown> = {};
   try {
-    const cfg = loadProjectConfig(params.project);
+    const cfg = await loadProjectConfig(params.project);
     config = { name: cfg.name, targets: cfg.targets };
   } catch {
     // ignore
@@ -115,7 +125,7 @@ export async function refreshChannel(params: {
   project: string;
   channel: string;
 }): Promise<ChannelMetrics> {
-  const config = loadProjectConfig(params.project);
+  const config = await loadProjectConfig(params.project);
   const connectorConfig = config.connectors[params.channel];
 
   if (!connectorConfig) {
@@ -129,17 +139,24 @@ export async function refreshChannel(params: {
 
   const result = await connector.refresh(config);
 
-  // Write metrics to file
-  const metricsPath = path.join(config.dataDir, "metrics", `${params.channel}.md`);
-  const metricsDir = path.dirname(metricsPath);
-  if (!fs.existsSync(metricsDir)) fs.mkdirSync(metricsDir, { recursive: true });
+  // Upsert metrics into Supabase
+  const projectId = await getProjectId(params.project);
 
-  const output = matter.stringify("\n", {
-    channel: result.channel,
-    updated_at: result.updated_at,
-    ...result.metrics,
-  });
-  fs.writeFileSync(metricsPath, output, "utf-8");
+  const { error } = await supabase
+    .from("gtm_metrics")
+    .upsert(
+      {
+        project_id: projectId,
+        channel: result.channel,
+        data: result.metrics,
+        fetched_at: result.updated_at,
+      },
+      { onConflict: "project_id,channel" }
+    );
+
+  if (error) {
+    throw new Error(`Failed to upsert metrics for ${params.channel}: ${error.message}`);
+  }
 
   return result;
 }
@@ -147,7 +164,7 @@ export async function refreshChannel(params: {
 export async function refreshAll(params: {
   project: string;
 }): Promise<{ results: ChannelMetrics[]; errors: Array<{ channel: string; error: string }> }> {
-  const config = loadProjectConfig(params.project);
+  const config = await loadProjectConfig(params.project);
   const results: ChannelMetrics[] = [];
   const errors: Array<{ channel: string; error: string }> = [];
 
@@ -164,14 +181,16 @@ export async function refreshAll(params: {
   return { results, errors };
 }
 
-export function getKpis(params: {
+export async function getKpis(params: {
   project: string;
   period?: string;
-}): Record<string, unknown> {
-  const config = loadProjectConfig(params.project);
+}): Promise<Record<string, unknown>> {
+  const config = await loadProjectConfig(params.project);
   const period = params.period || Object.keys(config.targets)[0] || "month_1";
   const targets = config.targets[period] || {};
-  const currentMetrics = readLatestMetrics(params.project);
+
+  const projectId = await getProjectId(params.project);
+  const currentMetrics = await readLatestMetrics(projectId);
 
   // Flatten all channel metrics into a single map
   const current: Record<string, number | null> = {};
@@ -206,9 +225,13 @@ export function getKpis(params: {
   };
 }
 
-export function performanceSummary(params: { project: string }): Record<string, unknown> {
-  const config = loadProjectConfig(params.project);
-  const currentMetrics = readLatestMetrics(params.project);
+export async function performanceSummary(params: {
+  project: string;
+}): Promise<Record<string, unknown>> {
+  const config = await loadProjectConfig(params.project);
+  const projectId = await getProjectId(params.project);
+  const currentMetrics = await readLatestMetrics(projectId);
+
   const period = Object.keys(config.targets)[0] || "month_1";
   const targets = config.targets[period] || {};
 
@@ -221,7 +244,6 @@ export function performanceSummary(params: { project: string }): Record<string, 
     suggestion: string;
   }> = [];
 
-  // Flatten metrics with channel source
   for (const [channel, metrics] of Object.entries(currentMetrics)) {
     for (const [metric, value] of Object.entries(metrics)) {
       if (value === null) continue;
@@ -253,14 +275,12 @@ export function performanceSummary(params: { project: string }): Record<string, 
   };
 }
 
-export function snapshot(params: { project: string }): { path: string; date: string } {
+export async function snapshot(params: {
+  project: string;
+}): Promise<{ snapshot_id: string; date: string }> {
   const date = new Date().toISOString().slice(0, 10);
-  const snapshotsDir = path.join(getProjectDir(params.project), "metrics", "snapshots");
-  if (!fs.existsSync(snapshotsDir)) {
-    fs.mkdirSync(snapshotsDir, { recursive: true });
-  }
-
-  const currentMetrics = readLatestMetrics(params.project);
+  const projectId = await getProjectId(params.project);
+  const currentMetrics = await readLatestMetrics(projectId);
 
   const snapshotData: Record<string, unknown> = {
     date,
@@ -268,9 +288,22 @@ export function snapshot(params: { project: string }): { path: string; date: str
     metrics: currentMetrics,
   };
 
-  const filePath = path.join(snapshotsDir, `${date}.md`);
-  const output = matter.stringify("\n", snapshotData);
-  fs.writeFileSync(filePath, output, "utf-8");
+  const { data, error } = await supabase
+    .from("gtm_snapshots")
+    .upsert(
+      {
+        project_id: projectId,
+        snapshot_date: date,
+        data: snapshotData,
+      },
+      { onConflict: "project_id,snapshot_date" }
+    )
+    .select("id")
+    .single();
 
-  return { path: filePath, date };
+  if (error) {
+    throw new Error(`Failed to save snapshot: ${error.message}`);
+  }
+
+  return { snapshot_id: data.id, date };
 }

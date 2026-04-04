@@ -6,17 +6,17 @@ import AnalyticsClient from "./analytics-client";
 export const dynamic = "force-dynamic";
 
 export default async function AnalyticsPage() {
-  const projects = getProjects();
+  const projects = await getProjects();
   const activeProject = await getActiveProject();
-  const config = getConfig(activeProject);
-  const funnel = getFunnelData(activeProject);
-  const deltas = getWeeklyDeltas(activeProject);
+  const config = await getConfig(activeProject);
+  const funnel = await getFunnelData(activeProject);
+  const deltas = await getWeeklyDeltas(activeProject);
 
   // Build multi-channel chart data
   const channels = ["linkedin", "reddit", "search-console", "google_ads", "meta_ads"];
   const allChartData: Record<string, Record<string, unknown>[]> = {};
   for (const ch of channels) {
-    const history = getChannelHistory(activeProject, ch, 8);
+    const history = await getChannelHistory(activeProject, ch, 8);
     const primaryKeys: Record<string, string[]> = {
       linkedin: ["impressions"],
       reddit: ["karma"],

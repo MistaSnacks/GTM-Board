@@ -6,11 +6,11 @@ import ResearchClient from "./research-client";
 export const dynamic = "force-dynamic";
 
 export default async function ResearchPage() {
-  const projects = getProjects();
+  const projects = await getProjects();
   const activeProject = await getActiveProject();
-  const config = getConfig(activeProject);
-  const research = getResearchHistory(activeProject);
-  const researchCards = getFilteredCards(activeProject, { source: "research" });
+  const config = await getConfig(activeProject);
+  const research = await getResearchHistory(activeProject);
+  const researchCards = await getFilteredCards(activeProject, { source: "research" });
 
   return (
     <PageShell projects={projects} activeProject={activeProject}>

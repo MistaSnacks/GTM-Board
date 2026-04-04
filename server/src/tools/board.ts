@@ -1,34 +1,15 @@
-import fs from "node:fs";
-import path from "node:path";
-import { getProjectDir } from "../lib/config.ts";
-import { readCard, writeCard, listCardsInDir, moveCardFile } from "../lib/markdown.ts";
+import { supabase, getProjectId } from "../lib/supabase.ts";
 import { generateCardId } from "../lib/slugify.ts";
+import { resolveProject } from "../lib/config.ts";
 import type { CardFrontmatter } from "../connectors/types.ts";
 
 const COLUMNS = ["backlog", "preparing", "live", "measuring", "done"] as const;
 type Column = (typeof COLUMNS)[number];
 
-function boardDir(project: string): string {
-  return path.join(getProjectDir(project), "board");
-}
+/** Top-level card columns that live on the row itself (not in metadata). */
+const DIRECT_COLUMNS = new Set(["title", "type", "channel", "column_name", "body", "board"]);
 
-function findCardById(
-  project: string,
-  cardId: string
-): { data: Record<string, unknown>; content: string; path: string; column: string } | null {
-  for (const col of COLUMNS) {
-    const dir = path.join(boardDir(project), col);
-    if (!fs.existsSync(dir)) continue;
-    const filePath = path.join(dir, `${cardId}.md`);
-    if (fs.existsSync(filePath)) {
-      const card = readCard(filePath);
-      return { ...card, path: filePath, column: col };
-    }
-  }
-  return null;
-}
-
-export function addCard(params: {
+export async function addCard(params: {
   project: string;
   title: string;
   column: Column;
@@ -37,139 +18,239 @@ export function addCard(params: {
   details?: string;
   target_date?: string;
   tags?: string[];
-}): { id: string; path: string } {
-  const id = generateCardId(params.title);
-  const dir = path.join(boardDir(params.project), params.column);
+  board?: string;
+}): Promise<{ id: string; path: string }> {
+  const slug = generateCardId(params.title);
+  const projectSlug = resolveProject(params.project);
+  const projectId = await getProjectId(projectSlug);
 
-  const frontmatter: Record<string, unknown> = {
-    id,
-    title: params.title,
-    type: params.type,
-    channel: params.channel,
-    column: params.column,
+  const metadata: Record<string, unknown> = {
     created: new Date().toISOString().slice(0, 10),
+    source: "manual",
+    metrics: {},
+    paper_artboard: null,
   };
+  if (params.target_date) metadata.target_date = params.target_date;
+  if (params.tags && params.tags.length > 0) metadata.tags = params.tags;
 
-  if (params.target_date) frontmatter.target_date = params.target_date;
-  if (params.tags && params.tags.length > 0) frontmatter.tags = params.tags;
-  frontmatter.source = "manual";
-  frontmatter.metrics = {};
-  frontmatter.paper_artboard = null;
+  const { error } = await supabase.from("gtm_cards").insert({
+    project_id: projectId,
+    slug,
+    board: params.board ?? "marketing",
+    title: params.title,
+    column_name: params.column,
+    type: params.type ?? null,
+    channel: params.channel ?? null,
+    metadata,
+    body: params.details ?? "",
+  });
 
-  const content = params.details ? `\n${params.details}\n` : "\n";
-  const filePath = path.join(dir, `${id}.md`);
-
-  writeCard(filePath, frontmatter, content);
-  return { id, path: filePath };
+  if (error) throw new Error(`Failed to add card: ${error.message}`);
+  return { id: slug, path: "supabase" };
 }
 
-export function moveCard(params: {
+export async function moveCard(params: {
   project: string;
   card_id: string;
   to_column: Column;
-}): { id: string; from_column: string; to_column: string; path: string } {
-  const card = findCardById(params.project, params.card_id);
-  if (!card) {
-    throw new Error(`Card not found: ${params.card_id}`);
-  }
+}): Promise<{ id: string; from_column: string; to_column: string; path: string }> {
+  const projectSlug = resolveProject(params.project);
+  const projectId = await getProjectId(projectSlug);
 
-  const toDir = path.join(boardDir(params.project), params.to_column);
-  const newPath = moveCardFile(card.path, toDir);
+  // Fetch current column
+  const { data: card, error: fetchErr } = await supabase
+    .from("gtm_cards")
+    .select("column_name")
+    .eq("project_id", projectId)
+    .eq("slug", params.card_id)
+    .single();
 
-  // Update column in frontmatter
-  const updated = readCard(newPath);
-  updated.data.column = params.to_column;
-  writeCard(newPath, updated.data, updated.content);
+  if (fetchErr || !card) throw new Error(`Card not found: ${params.card_id}`);
+
+  const fromColumn = card.column_name;
+
+  const { error: updateErr } = await supabase
+    .from("gtm_cards")
+    .update({ column_name: params.to_column, updated_at: new Date().toISOString() })
+    .eq("project_id", projectId)
+    .eq("slug", params.card_id);
+
+  if (updateErr) throw new Error(`Failed to move card: ${updateErr.message}`);
 
   return {
     id: params.card_id,
-    from_column: card.column,
+    from_column: fromColumn,
     to_column: params.to_column,
-    path: newPath,
+    path: "supabase",
   };
 }
 
-export function updateCard(params: {
+export async function updateCard(params: {
   project: string;
   card_id: string;
   updates: Record<string, unknown>;
-}): { id: string; updated_fields: string[] } {
-  const card = findCardById(params.project, params.card_id);
-  if (!card) {
-    throw new Error(`Card not found: ${params.card_id}`);
-  }
+}): Promise<{ id: string; updated_fields: string[] }> {
+  const projectSlug = resolveProject(params.project);
+  const projectId = await getProjectId(projectSlug);
 
+  // Fetch existing card so we can merge metadata
+  const { data: card, error: fetchErr } = await supabase
+    .from("gtm_cards")
+    .select("metadata")
+    .eq("project_id", projectId)
+    .eq("slug", params.card_id)
+    .single();
+
+  if (fetchErr || !card) throw new Error(`Card not found: ${params.card_id}`);
+
+  const directUpdates: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  const metadataMerge: Record<string, unknown> = {};
   const updatedFields: string[] = [];
+
   for (const [key, value] of Object.entries(params.updates)) {
-    if (key === "id") continue; // never change ID
-    card.data[key] = value;
+    if (key === "id" || key === "slug") continue; // never change identity
+
+    // Map "column" param to "column_name" DB column
+    const dbKey = key === "column" ? "column_name" : key;
+
+    if (DIRECT_COLUMNS.has(dbKey)) {
+      directUpdates[dbKey] = value;
+    } else {
+      metadataMerge[key] = value;
+    }
     updatedFields.push(key);
   }
 
-  writeCard(card.path, card.data, card.content);
+  if (Object.keys(metadataMerge).length > 0) {
+    directUpdates.metadata = { ...(card.metadata as Record<string, unknown>), ...metadataMerge };
+  }
+
+  const { error: updateErr } = await supabase
+    .from("gtm_cards")
+    .update(directUpdates)
+    .eq("project_id", projectId)
+    .eq("slug", params.card_id);
+
+  if (updateErr) throw new Error(`Failed to update card: ${updateErr.message}`);
+
   return { id: params.card_id, updated_fields: updatedFields };
 }
 
-export function listCards(params: {
+export async function listCards(params: {
   project: string;
   column?: Column;
   type?: CardFrontmatter["type"];
   channel?: CardFrontmatter["channel"];
-}): Array<Record<string, unknown>> {
-  const columns = params.column ? [params.column] : [...COLUMNS];
-  const results: Array<Record<string, unknown>> = [];
+  board?: string;
+}): Promise<Array<Record<string, unknown>>> {
+  const projectSlug = resolveProject(params.project);
+  const projectId = await getProjectId(projectSlug);
 
-  for (const col of columns) {
-    const dir = path.join(boardDir(params.project), col);
-    const cards = listCardsInDir(dir);
-    for (const card of cards) {
-      if (params.type && card.data.type !== params.type) continue;
-      if (params.channel && card.data.channel !== params.channel) continue;
-      results.push({
-        id: card.data.id,
-        title: card.data.title,
-        type: card.data.type,
-        channel: card.data.channel,
-        column: col,
-        created: card.data.created,
-        target_date: card.data.target_date || null,
-        tags: card.data.tags || [],
-        metrics: card.data.metrics || {},
-      });
-    }
-  }
+  let query = supabase
+    .from("gtm_cards")
+    .select("slug, title, type, channel, column_name, metadata")
+    .eq("project_id", projectId);
 
-  return results;
+  if (params.board) query = query.eq("board", params.board);
+  if (params.column) query = query.eq("column_name", params.column);
+  if (params.type) query = query.eq("type", params.type);
+  if (params.channel) query = query.eq("channel", params.channel);
+
+  query = query.order("created_at", { ascending: true });
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Failed to list cards: ${error.message}`);
+
+  return (data ?? []).map((row) => {
+    const meta = (row.metadata ?? {}) as Record<string, unknown>;
+    return {
+      id: row.slug,
+      title: row.title,
+      type: row.type,
+      channel: row.channel,
+      column: row.column_name,
+      created: meta.created ?? null,
+      target_date: meta.target_date ?? null,
+      tags: meta.tags ?? [],
+      metrics: meta.metrics ?? {},
+    };
+  });
 }
 
-export function getCard(params: {
+export async function getCard(params: {
   project: string;
   card_id: string;
-}): { frontmatter: Record<string, unknown>; body: string } {
-  const card = findCardById(params.project, params.card_id);
-  if (!card) {
-    throw new Error(`Card not found: ${params.card_id}`);
-  }
-  return { frontmatter: card.data, body: card.content };
+}): Promise<{ frontmatter: Record<string, unknown>; body: string }> {
+  const projectSlug = resolveProject(params.project);
+  const projectId = await getProjectId(projectSlug);
+
+  const { data: row, error } = await supabase
+    .from("gtm_cards")
+    .select("*")
+    .eq("project_id", projectId)
+    .eq("slug", params.card_id)
+    .single();
+
+  if (error || !row) throw new Error(`Card not found: ${params.card_id}`);
+
+  const meta = (row.metadata ?? {}) as Record<string, unknown>;
+  const frontmatter: Record<string, unknown> = {
+    id: row.slug,
+    title: row.title,
+    type: row.type,
+    channel: row.channel,
+    column: row.column_name,
+    board: row.board,
+    ...meta,
+  };
+
+  return { frontmatter, body: row.body ?? "" };
 }
 
-export function setCardDescription(params: {
+export async function setCardDescription(params: {
   project: string;
   card_id: string;
   description: string;
   body?: string;
-}): { id: string; updated_fields: string[] } {
-  const card = findCardById(params.project, params.card_id);
-  if (!card) {
-    throw new Error(`Card not found: ${params.card_id}`);
-  }
+}): Promise<{ id: string; updated_fields: string[] }> {
+  const projectSlug = resolveProject(params.project);
+  const projectId = await getProjectId(projectSlug);
+
+  // Fetch existing metadata to merge description into it
+  const { data: card, error: fetchErr } = await supabase
+    .from("gtm_cards")
+    .select("metadata")
+    .eq("project_id", projectId)
+    .eq("slug", params.card_id)
+    .single();
+
+  if (fetchErr || !card) throw new Error(`Card not found: ${params.card_id}`);
 
   const updatedFields: string[] = ["description"];
-  card.data.description = params.description;
+  const updatedMetadata = {
+    ...(card.metadata as Record<string, unknown>),
+    description: params.description,
+  };
 
-  const body = params.body !== undefined ? params.body : card.content;
-  if (params.body !== undefined) updatedFields.push("body");
+  const updatePayload: Record<string, unknown> = {
+    metadata: updatedMetadata,
+    updated_at: new Date().toISOString(),
+  };
 
-  writeCard(card.path, card.data, body);
+  if (params.body !== undefined) {
+    updatePayload.body = params.body;
+    updatedFields.push("body");
+  }
+
+  const { error: updateErr } = await supabase
+    .from("gtm_cards")
+    .update(updatePayload)
+    .eq("project_id", projectId)
+    .eq("slug", params.card_id);
+
+  if (updateErr) throw new Error(`Failed to set description: ${updateErr.message}`);
+
   return { id: params.card_id, updated_fields: updatedFields };
 }

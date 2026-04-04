@@ -1,6 +1,6 @@
 ---
 channel: metricool
-updated_at: '2026-04-01T23:01:51.017Z'
+updated_at: '2026-04-03T23:54:03.294Z'
 linkedin_posts: 0
 linkedin_impressions: null
 linkedin_engagement: null

@@ -1,24 +1,21 @@
-import fs from "node:fs";
-import path from "node:path";
-import matter from "gray-matter";
-import { getProjectDir, loadProjectConfig } from "../lib/config.ts";
-import { refreshAll } from "./metrics.ts";
-import { getKpis, performanceSummary, snapshot } from "./metrics.ts";
+import { supabase, getProjectId } from "../lib/supabase.ts";
+import { loadProjectConfig } from "../lib/config.ts";
+import { refreshAll, getKpis, performanceSummary, snapshot } from "./metrics.ts";
 import { addCard } from "./board.ts";
 
 export async function researchRun(params: { project: string }): Promise<Record<string, unknown>> {
-  const config = loadProjectConfig(params.project);
+  const projectId = await getProjectId(params.project);
   const date = new Date().toISOString().slice(0, 10);
 
   // Step 1: Refresh all metrics
   const refreshResults = await refreshAll({ project: params.project });
 
   // Step 2: Analyze KPIs vs targets
-  const kpis = getKpis({ project: params.project });
-  const performance = performanceSummary({ project: params.project });
+  const kpis = await getKpis({ project: params.project });
+  const performance = await performanceSummary({ project: params.project });
 
   // Step 3: Snapshot
-  const snapshotResult = snapshot({ project: params.project });
+  const snapshotResult = await snapshot({ project: params.project });
 
   // Step 4: Build research findings
   const findings: Record<string, unknown> = {
@@ -32,53 +29,32 @@ export async function researchRun(params: { project: string }): Promise<Record<s
     performance,
   };
 
-  // Step 5: Write findings to research file
-  const researchDir = path.join(getProjectDir(params.project), "research");
-  if (!fs.existsSync(researchDir)) {
-    fs.mkdirSync(researchDir, { recursive: true });
-  }
+  // Step 5: Insert findings into Supabase
+  const { data: inserted, error } = await supabase
+    .from("gtm_research_runs")
+    .insert({
+      project_id: projectId,
+      run_type: "full",
+      findings,
+      cards_created: [],
+    })
+    .select("id")
+    .single();
 
-  const filePath = path.join(researchDir, `${date}.md`);
-  const researchContent = `
-## Research Run — ${date}
-
-### Metrics Refreshed
-${refreshResults.results.map((r) => `- ${r.channel}: ${Object.keys(r.metrics).length} metrics`).join("\n")}
-
-### KPI Status
-${JSON.stringify(kpis, null, 2)}
-
-### Performance Summary
-${JSON.stringify(performance, null, 2)}
-
-### Recommendations
-- Review channels with metrics below target
-- Check competitor activity via gtm_competitor_check
-- Find engagement opportunities via gtm_find_opportunities
-`;
-
-  const frontmatter: Record<string, unknown> = {
-    date,
-    project: params.project,
-    channels_refreshed: refreshResults.results.map((r) => r.channel),
-    snapshot: snapshotResult.path,
-  };
-
-  const output = matter.stringify(researchContent, frontmatter);
-  fs.writeFileSync(filePath, output, "utf-8");
+  if (error) throw new Error(`Failed to save research run: ${error.message}`);
 
   return {
     ...findings,
-    research_file: filePath,
-    snapshot_file: snapshotResult.path,
+    research_id: inserted.id,
+    snapshot_date: snapshotResult.date,
   };
 }
 
-export function competitorCheck(params: {
+export async function competitorCheck(params: {
   project: string;
   competitors?: string[];
-}): Record<string, unknown> {
-  const config = loadProjectConfig(params.project);
+}): Promise<Record<string, unknown>> {
+  const config = await loadProjectConfig(params.project);
   const rawConfig = config as unknown as Record<string, unknown>;
   const researchConfig = rawConfig.research as Record<string, unknown> | undefined;
   const competitors = params.competitors || (researchConfig?.competitors as string[]) || [];
@@ -104,8 +80,10 @@ export function competitorCheck(params: {
   };
 }
 
-export function findOpportunities(params: { project: string }): Record<string, unknown> {
-  const config = loadProjectConfig(params.project);
+export async function findOpportunities(params: {
+  project: string;
+}): Promise<Record<string, unknown>> {
+  const config = await loadProjectConfig(params.project);
   const rawConfig = config as unknown as Record<string, unknown>;
   const researchConfig = rawConfig.research as Record<string, unknown> | undefined;
   const searchQueries = (researchConfig?.exa_search_queries as string[]) || [];
@@ -129,37 +107,29 @@ export function findOpportunities(params: { project: string }): Record<string, u
   };
 }
 
-export function researchHistory(params: {
+export async function researchHistory(params: {
   project: string;
   limit?: number;
-}): { runs: Array<Record<string, unknown>> } {
-  const researchDir = path.join(getProjectDir(params.project), "research");
-  if (!fs.existsSync(researchDir)) {
-    return { runs: [] };
-  }
-
-  const files = fs
-    .readdirSync(researchDir)
-    .filter((f) => f.endsWith(".md"))
-    .sort()
-    .reverse();
-
+}): Promise<{ runs: Array<Record<string, unknown>> }> {
+  const projectId = await getProjectId(params.project);
   const limit = params.limit || 10;
-  const runs: Array<Record<string, unknown>> = [];
 
-  for (const file of files.slice(0, limit)) {
-    try {
-      const raw = fs.readFileSync(path.join(researchDir, file), "utf-8");
-      const parsed = matter(raw);
-      runs.push({
-        date: file.replace(".md", ""),
-        ...parsed.data,
-        summary: parsed.content.slice(0, 500),
-      });
-    } catch {
-      // skip unparseable files
-    }
-  }
+  const { data: rows, error } = await supabase
+    .from("gtm_research_runs")
+    .select("id, run_type, findings, cards_created, created_at")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(`Failed to query research history: ${error.message}`);
+
+  const runs = (rows || []).map((row: Record<string, unknown>) => ({
+    research_id: row.id,
+    run_type: row.run_type,
+    date: (row.created_at as string)?.slice(0, 10),
+    findings: row.findings,
+    cards_created: row.cards_created,
+  }));
 
   return { runs };
 }

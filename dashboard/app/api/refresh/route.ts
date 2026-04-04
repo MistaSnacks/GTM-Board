@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 const GTM_HOME = process.env.GTM_HOME || "/Users/admin/gtm-board";
 
 export async function POST() {
-  const projects = getProjects();
+  const projects = await getProjects();
   const project = projects[0] || "tailor";
 
   try {

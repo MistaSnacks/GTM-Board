@@ -1,45 +1,5 @@
-import fs from "node:fs";
-import path from "node:path";
-import { getProjectDir, loadProjectConfig } from "../lib/config.ts";
-import matter from "gray-matter";
-
-function cadenceDir(project: string): string {
-  return path.join(getProjectDir(project), "cadence");
-}
-
-function getMonthDir(project: string, date: Date): string {
-  const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-  return path.join(cadenceDir(project), yearMonth);
-}
-
-function getCadenceFilePath(project: string, platform: string, date: Date): string {
-  const dir = getMonthDir(project, date);
-  return path.join(dir, `${platform}.md`);
-}
-
-function readOrCreateCadenceFile(
-  filePath: string
-): { data: Record<string, unknown>; content: string } {
-  if (fs.existsSync(filePath)) {
-    const raw = fs.readFileSync(filePath, "utf-8");
-    const parsed = matter(raw);
-    return { data: parsed.data as Record<string, unknown>, content: parsed.content };
-  }
-  return { data: { entries: [] }, content: "" };
-}
-
-function writeCadenceFile(
-  filePath: string,
-  data: Record<string, unknown>,
-  content: string
-): void {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  const output = matter.stringify(content, data);
-  fs.writeFileSync(filePath, output, "utf-8");
-}
+import { supabase, getProjectId } from "../lib/supabase.ts";
+import { loadProjectConfig } from "../lib/config.ts";
 
 interface CadenceEntry {
   date: string;
@@ -63,61 +23,6 @@ function stripUndefined(obj: Record<string, unknown>): Record<string, unknown> {
   return result;
 }
 
-export function logPost(params: {
-  project: string;
-  platform: string;
-  type: string;
-  title: string;
-  url?: string;
-  metrics?: Record<string, number>;
-}): { logged: boolean; entry: Record<string, unknown> } {
-  const now = new Date();
-  const filePath = getCadenceFilePath(params.project, params.platform, now);
-  const file = readOrCreateCadenceFile(filePath);
-
-  const entries = (file.data.entries as Record<string, unknown>[]) || [];
-  const entry = stripUndefined({
-    date: now.toISOString().slice(0, 10),
-    kind: "post",
-    type: params.type,
-    title: params.title,
-    url: params.url,
-    metrics: params.metrics,
-  });
-  entries.push(entry);
-  file.data.entries = entries;
-
-  writeCadenceFile(filePath, file.data, file.content);
-  return { logged: true, entry };
-}
-
-export function logComment(params: {
-  project: string;
-  platform: string;
-  count: number;
-  subreddit?: string;
-  notes?: string;
-}): { logged: boolean; entry: Record<string, unknown> } {
-  const now = new Date();
-  const filePath = getCadenceFilePath(params.project, params.platform, now);
-  const file = readOrCreateCadenceFile(filePath);
-
-  const entries = (file.data.entries as Record<string, unknown>[]) || [];
-  const entry = stripUndefined({
-    date: now.toISOString().slice(0, 10),
-    kind: "comment",
-    type: "comment",
-    count: params.count,
-    subreddit: params.subreddit,
-    notes: params.notes,
-  });
-  entries.push(entry);
-  file.data.entries = entries;
-
-  writeCadenceFile(filePath, file.data, file.content);
-  return { logged: true, entry };
-}
-
 function getWeekBounds(date: Date): { start: Date; end: Date } {
   const d = new Date(date);
   const day = d.getDay();
@@ -131,52 +36,151 @@ function getWeekBounds(date: Date): { start: Date; end: Date } {
   return { start, end };
 }
 
-function getEntriesForWeek(
-  project: string,
-  platform: string,
-  weekDate: Date
-): CadenceEntry[] {
-  const { start, end } = getWeekBounds(weekDate);
-  const results: CadenceEntry[] = [];
-
-  // Check the month(s) that overlap with the week
-  const months = new Set<string>();
-  const d = new Date(start);
-  while (d <= end) {
-    months.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-    d.setDate(d.getDate() + 1);
-  }
-
-  for (const month of months) {
-    const filePath = path.join(cadenceDir(project), month, `${platform}.md`);
-    if (!fs.existsSync(filePath)) continue;
-    const file = readOrCreateCadenceFile(filePath);
-    const entries = (file.data.entries as CadenceEntry[]) || [];
-    for (const entry of entries) {
-      const entryDate = new Date(entry.date);
-      if (entryDate >= start && entryDate <= end) {
-        results.push(entry);
-      }
-    }
-  }
-  return results;
+function toDateStr(d: Date): string {
+  return d.toISOString().slice(0, 10);
 }
 
-export function cadenceStatus(params: {
+export async function logPost(params: {
+  project: string;
+  platform: string;
+  type: string;
+  title: string;
+  url?: string;
+  metrics?: Record<string, number>;
+}): Promise<{ logged: boolean; entry: Record<string, unknown> }> {
+  const projectId = await getProjectId(params.project);
+  const now = new Date();
+  const weekStart = toDateStr(getWeekBounds(now).start);
+
+  const entry = stripUndefined({
+    date: toDateStr(now),
+    kind: "post",
+    type: params.type,
+    title: params.title,
+    url: params.url,
+    metrics: params.metrics,
+  });
+
+  // Fetch existing row to append entry
+  const { data: existing } = await supabase
+    .from("gtm_cadence_logs")
+    .select("count, details")
+    .eq("project_id", projectId)
+    .eq("platform", params.platform)
+    .eq("log_type", "post")
+    .eq("week_start", weekStart)
+    .single();
+
+  const currentCount = existing?.count ?? 0;
+  const currentEntries = (existing?.details as { entries?: unknown[] })?.entries ?? [];
+  const updatedEntries = [...currentEntries, entry];
+
+  const { error } = await supabase
+    .from("gtm_cadence_logs")
+    .upsert(
+      {
+        project_id: projectId,
+        platform: params.platform,
+        log_type: "post",
+        week_start: weekStart,
+        count: currentCount + 1,
+        details: { entries: updatedEntries },
+      },
+      { onConflict: "project_id,platform,log_type,week_start" }
+    );
+
+  if (error) throw new Error(`Failed to log post: ${error.message}`);
+
+  return { logged: true, entry };
+}
+
+export async function logComment(params: {
+  project: string;
+  platform: string;
+  count: number;
+  subreddit?: string;
+  notes?: string;
+}): Promise<{ logged: boolean; entry: Record<string, unknown> }> {
+  const projectId = await getProjectId(params.project);
+  const now = new Date();
+  const weekStart = toDateStr(getWeekBounds(now).start);
+
+  const entry = stripUndefined({
+    date: toDateStr(now),
+    kind: "comment",
+    type: "comment",
+    count: params.count,
+    subreddit: params.subreddit,
+    notes: params.notes,
+  });
+
+  // Fetch existing row to append entry
+  const { data: existing } = await supabase
+    .from("gtm_cadence_logs")
+    .select("count, details")
+    .eq("project_id", projectId)
+    .eq("platform", params.platform)
+    .eq("log_type", "comment")
+    .eq("week_start", weekStart)
+    .single();
+
+  const currentCount = existing?.count ?? 0;
+  const currentEntries = (existing?.details as { entries?: unknown[] })?.entries ?? [];
+  const updatedEntries = [...currentEntries, entry];
+
+  const { error } = await supabase
+    .from("gtm_cadence_logs")
+    .upsert(
+      {
+        project_id: projectId,
+        platform: params.platform,
+        log_type: "comment",
+        week_start: weekStart,
+        count: currentCount + params.count,
+        details: { entries: updatedEntries },
+      },
+      { onConflict: "project_id,platform,log_type,week_start" }
+    );
+
+  if (error) throw new Error(`Failed to log comment: ${error.message}`);
+
+  return { logged: true, entry };
+}
+
+export async function cadenceStatus(params: {
   project: string;
   week?: string;
-}): Record<string, unknown> {
-  const config = loadProjectConfig(params.project);
+}): Promise<Record<string, unknown>> {
+  const projectId = await getProjectId(params.project);
+  const config = await loadProjectConfig(params.project);
   const weekDate = params.week ? new Date(params.week) : new Date();
   const { start } = getWeekBounds(weekDate);
+  const weekStart = toDateStr(start);
+
+  // Query all cadence logs for this project + week
+  const { data: rows, error } = await supabase
+    .from("gtm_cadence_logs")
+    .select("platform, log_type, count, details")
+    .eq("project_id", projectId)
+    .eq("week_start", weekStart);
+
+  if (error) throw new Error(`Failed to query cadence: ${error.message}`);
+
+  const lookup = (platform: string, logType: string) => {
+    const row = (rows || []).find(
+      (r: Record<string, unknown>) => r.platform === platform && r.log_type === logType
+    );
+    return {
+      count: (row?.count as number) ?? 0,
+      entries: ((row?.details as { entries?: CadenceEntry[] })?.entries ?? []) as CadenceEntry[],
+    };
+  };
 
   const result: Record<string, unknown> = {};
 
   // LinkedIn
-  const liEntries = getEntriesForWeek(params.project, "linkedin", weekDate);
-  const liPosts = liEntries.filter((e) => e.kind === "post");
-  const liComments = liEntries.filter((e) => e.kind === "comment");
-  const totalLiComments = liComments.reduce((sum, e) => sum + (e.count || 0), 0);
+  const liPosts = lookup("linkedin", "post");
+  const liComments = lookup("linkedin", "comment");
 
   const schedule: Record<string, string> = {};
   if (config.cadence.linkedin?.schedule) {
@@ -186,8 +190,8 @@ export function cadenceStatus(params: {
       if (dayIndex === -1) continue;
       const targetDate = new Date(start);
       targetDate.setDate(start.getDate() + ((dayIndex - 1 + 7) % 7));
-      const done = liPosts.some(
-        (p) => p.type === postType && p.date === targetDate.toISOString().slice(0, 10)
+      const done = liPosts.entries.some(
+        (p) => p.type === postType && p.date === toDateStr(targetDate)
       );
       schedule[day] = `${postType} (${done ? "done" : "pending"})`;
     }
@@ -195,51 +199,52 @@ export function cadenceStatus(params: {
 
   result.linkedin = {
     posts: {
-      done: liPosts.length,
+      done: liPosts.count,
       target: config.cadence.linkedin?.posts_per_week || 0,
       schedule,
     },
     comments: {
-      done: totalLiComments,
+      done: liComments.count,
       min: config.cadence.linkedin?.comments_per_week?.min || 0,
       target: config.cadence.linkedin?.comments_per_week?.target || 0,
     },
   };
 
   // Reddit
-  const redditEntries = getEntriesForWeek(params.project, "reddit", weekDate);
-  const redditPosts = redditEntries.filter((e) => e.kind === "post");
-  const redditComments = redditEntries.filter((e) => e.kind === "comment");
-  const totalRedditComments = redditComments.reduce((sum, e) => sum + (e.count || 0), 0);
+  const redditPosts = lookup("reddit", "post");
+  const redditComments = lookup("reddit", "comment");
 
   result.reddit = {
     posts: {
-      done: redditPosts.length,
+      done: redditPosts.count,
       min: config.cadence.reddit?.posts_per_week?.min || 0,
       target: config.cadence.reddit?.posts_per_week?.target || 0,
     },
     comments: {
-      done: totalRedditComments,
+      done: redditComments.count,
       min: config.cadence.reddit?.comments_per_week?.min || 0,
       target: config.cadence.reddit?.comments_per_week?.target || 0,
     },
   };
 
-  result.week_start = start.toISOString().slice(0, 10);
+  result.week_start = weekStart;
 
   return result;
 }
 
-export function cadenceStreak(params: { project: string }): { streak: number } {
-  const config = loadProjectConfig(params.project);
+export async function cadenceStreak(params: { project: string }): Promise<{ streak: number }> {
+  const config = await loadProjectConfig(params.project);
   let streak = 0;
   const now = new Date();
   const checkDate = new Date(now);
-  // Go back week by week
-  checkDate.setDate(checkDate.getDate() - 7); // start from last complete week
+  // Start from last complete week
+  checkDate.setDate(checkDate.getDate() - 7);
 
   for (let i = 0; i < 52; i++) {
-    const status = cadenceStatus({ project: params.project, week: checkDate.toISOString().slice(0, 10) });
+    const status = await cadenceStatus({
+      project: params.project,
+      week: toDateStr(checkDate),
+    });
 
     const li = status.linkedin as Record<string, Record<string, number>> | undefined;
     const rd = status.reddit as Record<string, Record<string, number>> | undefined;

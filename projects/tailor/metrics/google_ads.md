@@ -1,6 +1,6 @@
 ---
 channel: google_ads
-updated_at: '2026-04-01T23:01:49.175Z'
+updated_at: '2026-04-03T23:54:01.201Z'
 google_ad_campaigns: 3
 google_ad_spend: 103.06
 google_ad_impressions: 95047

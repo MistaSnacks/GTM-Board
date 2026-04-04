@@ -5,14 +5,14 @@ import { DashboardClient } from "./dashboard-client";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const projects = getProjects();
+  const projects = await getProjects();
   const activeProject = await getActiveProject();
-  const config = getConfig(activeProject);
-  const board = getBoard(activeProject);
-  const kpis = getKPIs(activeProject);
-  const cadence = getCadence(activeProject);
-  const metrics = getMetrics(activeProject);
-  const sparklines = getSparklineData(activeProject);
+  const config = await getConfig(activeProject);
+  const board = await getBoard(activeProject);
+  const kpis = await getKPIs(activeProject);
+  const cadence = await getCadence(activeProject);
+  const metrics = await getMetrics(activeProject);
+  const sparklines = await getSparklineData(activeProject);
 
   return (
     <DashboardClient
