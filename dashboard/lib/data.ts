@@ -1,7 +1,5 @@
-import fs from "fs";
-import path from "path";
-import matter from "gray-matter";
-import { getProjectsDir, getConfig } from "./config";
+import { supabase } from "./supabase";
+import { getConfig } from "./config";
 import type {
   BoardData,
   CardData,
@@ -22,12 +20,57 @@ import type {
   UGCBrief,
   UGCPipelineStats,
   ContentPipelineStats,
+  AgentTaskColumn,
+  AgentTaskData,
+  AgentBoardData,
 } from "./types";
 
 const COLUMNS: Column[] = ["backlog", "preparing", "live", "measuring", "done"];
 
-export function getBoard(project: string): BoardData {
-  const boardDir = path.join(getProjectsDir(), project, "board");
+// --- Helper: resolve project slug to project_id ---
+
+async function getProjectId(project: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("gtm_projects")
+    .select("id")
+    .eq("slug", project)
+    .single();
+
+  if (error || !data) return null;
+  return data.id;
+}
+
+// --- Helper: map a gtm_cards row to CardData ---
+
+function rowToCard(row: Record<string, unknown>): CardData {
+  const meta = (row.metadata || {}) as Record<string, unknown>;
+  return {
+    id: row.slug as string,
+    title: (row.title as string) || "Untitled",
+    type: (row.type as CardData["type"]) || "post",
+    channel: (row.channel as CardData["channel"]) || "other",
+    column: (row.column_name as Column) || "backlog",
+    created: meta.created ? String(meta.created) : "",
+    target_date: meta.target_date ? String(meta.target_date) : undefined,
+    description: meta.description ? String(meta.description) : undefined,
+    tags: meta.tags as string[] | undefined,
+    source: meta.source as CardData["source"],
+    metrics: meta.metrics as Record<string, number | null> | undefined,
+    paper_artboard: meta.paper_artboard as string | null | undefined,
+    body: (row.body as string) || "",
+    creator: meta.creator ? String(meta.creator) : undefined,
+    creator_handle: meta.creator_handle ? String(meta.creator_handle) : undefined,
+    deliverable_type: meta.deliverable_type ? String(meta.deliverable_type) : undefined,
+    approval_status: meta.approval_status as CardData["approval_status"],
+    due_date: meta.due_date ? String(meta.due_date) : undefined,
+    asset_url: meta.asset_url as string | null | undefined,
+  };
+}
+
+// --- Board ---
+
+export async function getBoard(project: string): Promise<BoardData> {
+  const projectId = await getProjectId(project);
   const columns: BoardData["columns"] = {
     backlog: [],
     preparing: [],
@@ -36,97 +79,92 @@ export function getBoard(project: string): BoardData {
     done: [],
   };
 
-  for (const col of COLUMNS) {
-    const colDir = path.join(boardDir, col);
-    if (!fs.existsSync(colDir)) continue;
-    const files = fs.readdirSync(colDir).filter((f) => f.endsWith(".md"));
-    for (const file of files) {
-      const raw = fs.readFileSync(path.join(colDir, file), "utf-8");
-      const { data, content } = matter(raw);
-      columns[col].push({
-        id: data.id || path.basename(file, ".md"),
-        title: data.title || "Untitled",
-        type: data.type || "post",
-        channel: data.channel || "other",
-        column: col,
-        created: data.created instanceof Date ? data.created.toISOString().slice(0, 10) : String(data.created || ""),
-        target_date: data.target_date instanceof Date ? data.target_date.toISOString().slice(0, 10) : data.target_date ? String(data.target_date) : undefined,
-        description: data.description || undefined,
-        tags: data.tags,
-        source: data.source,
-        metrics: data.metrics,
-        paper_artboard: data.paper_artboard,
-        body: content,
-        creator: data.creator,
-        creator_handle: data.creator_handle,
-        deliverable_type: data.deliverable_type,
-        approval_status: data.approval_status,
-        due_date: data.due_date instanceof Date ? data.due_date.toISOString().slice(0, 10) : data.due_date ? String(data.due_date) : undefined,
-        asset_url: data.asset_url,
-      });
+  if (!projectId) return { columns };
+
+  const { data, error } = await supabase
+    .from("gtm_cards")
+    .select("*")
+    .eq("project_id", projectId)
+    .eq("board", "marketing")
+    .order("created_at", { ascending: false });
+
+  if (error || !data) return { columns };
+
+  for (const row of data) {
+    const col = (row.column_name as Column) || "backlog";
+    if (COLUMNS.includes(col)) {
+      columns[col].push(rowToCard(row));
     }
-    columns[col].sort(
-      (a, b) => new Date(b.created).getTime() - new Date(a.created).getTime()
-    );
   }
 
   return { columns };
 }
 
-export function getCadence(project: string): CadenceData {
-  const config = getConfig(project);
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const cadenceDir = path.join(
-    getProjectsDir(),
-    project,
-    "cadence",
-    `${year}-${month}`
-  );
+// --- Cadence ---
 
-  const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+export async function getCadence(project: string): Promise<CadenceData> {
+  const [config, projectId] = await Promise.all([
+    getConfig(project),
+    getProjectId(project),
+  ]);
+
+  const now = new Date();
   const today = now.getDay();
 
   // Build LinkedIn post schedule for the week
   const schedule = config.cadence.linkedin.schedule;
   const scheduleDays = Object.keys(schedule);
+  const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
   const posts: CadenceDay[] = scheduleDays.map((day) => {
     const dayIndex = dayNames.indexOf(day);
     return {
       day: day.charAt(0).toUpperCase(),
       type: schedule[day],
-      done: dayIndex < today, // simple heuristic: past days are done
+      done: dayIndex < today,
     };
   });
 
-  // Try to read actual cadence files
   let linkedinComments = 0;
   let redditComments = 0;
   let linkedinPostsDone = 0;
   let redditPostsDone = 0;
 
-  if (fs.existsSync(cadenceDir)) {
-    const linkedinFile = path.join(cadenceDir, "linkedin.md");
-    if (fs.existsSync(linkedinFile)) {
-      const { data } = matter(fs.readFileSync(linkedinFile, "utf-8"));
-      linkedinPostsDone = data.posts_done ?? 0;
-      linkedinComments = data.comments_done ?? 0;
-      // Update post done status from actual data
-      if (data.posts_completed && Array.isArray(data.posts_completed)) {
-        for (const completed of data.posts_completed) {
-          const post = posts.find(
-            (p) => p.day === String(completed).charAt(0).toUpperCase()
-          );
-          if (post) post.done = true;
+  if (projectId) {
+    // Get current week start (Sunday)
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay());
+    const weekStartStr = weekStart.toISOString().slice(0, 10);
+
+    const { data: logs } = await supabase
+      .from("gtm_cadence_logs")
+      .select("platform, log_type, count, details")
+      .eq("project_id", projectId)
+      .eq("week_start", weekStartStr);
+
+    if (logs) {
+      for (const log of logs) {
+        if (log.platform === "linkedin") {
+          if (log.log_type === "posts") {
+            linkedinPostsDone = log.count ?? 0;
+            // Update post done status from details
+            const details = log.details as Record<string, unknown> | null;
+            if (details?.posts_completed && Array.isArray(details.posts_completed)) {
+              for (const completed of details.posts_completed) {
+                const post = posts.find(
+                  (p) => p.day === String(completed).charAt(0).toUpperCase()
+                );
+                if (post) post.done = true;
+              }
+            }
+          }
+          if (log.log_type === "comments") linkedinComments = log.count ?? 0;
+        }
+        if (log.platform === "reddit") {
+          if (log.log_type === "posts") redditPostsDone = log.count ?? 0;
+          if (log.log_type === "comments") redditComments = log.count ?? 0;
         }
       }
-    }
-    const redditFile = path.join(cadenceDir, "reddit.md");
-    if (fs.existsSync(redditFile)) {
-      const { data } = matter(fs.readFileSync(redditFile, "utf-8"));
-      redditPostsDone = data.posts_done ?? 0;
-      redditComments = data.comments_done ?? 0;
     }
   }
 
@@ -147,62 +185,53 @@ export function getCadence(project: string): CadenceData {
   };
 }
 
-const RESERVED_KEYS = new Set(["channel", "updated_at"]);
+// --- Metrics ---
 
-function extractMetrics(data: Record<string, unknown>): Record<string, number | null> {
-  // Nested format: { channel, updated_at, metrics: { ... } }
-  if (data.metrics && typeof data.metrics === "object" && !Array.isArray(data.metrics)) {
-    const nested = data.metrics as Record<string, unknown>;
-    const result: Record<string, number | null> = {};
-    for (const [key, value] of Object.entries(nested)) {
-      if (typeof value === "number" || value === null) {
-        result[key] = value as number | null;
-      }
-    }
-    return result;
-  }
-  // Flat format: { channel, updated_at, total_signups: 99, ... }
-  const result: Record<string, number | null> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (RESERVED_KEYS.has(key)) continue;
-    if (typeof value === "number" || value === null) {
-      result[key] = value as number | null;
-    }
-  }
-  return result;
-}
-
-export function getMetrics(project: string): MetricsData {
-  const metricsDir = path.join(getProjectsDir(), project, "metrics");
+export async function getMetrics(project: string): Promise<MetricsData> {
+  const projectId = await getProjectId(project);
   const channels: Record<string, ChannelMetricsData> = {};
 
-  if (!fs.existsSync(metricsDir)) return { channels };
+  if (!projectId) return { channels };
 
-  const files = fs.readdirSync(metricsDir).filter((f) => f.endsWith(".md"));
-  for (const file of files) {
-    const name = path.basename(file, ".md");
-    if (name === "kpi-targets") continue;
-    const raw = fs.readFileSync(path.join(metricsDir, file), "utf-8");
-    const { data } = matter(raw);
-    channels[name] = {
-      channel: data.channel || name,
-      updated_at: data.updated_at || "",
-      metrics: extractMetrics(data as Record<string, unknown>),
+  const { data, error } = await supabase
+    .from("gtm_metrics")
+    .select("channel, data, fetched_at")
+    .eq("project_id", projectId);
+
+  if (error || !data) return { channels };
+
+  for (const row of data) {
+    const metricsData = (row.data || {}) as Record<string, number | null>;
+    channels[row.channel] = {
+      channel: row.channel,
+      updated_at: row.fetched_at || "",
+      metrics: metricsData,
     };
   }
 
   return { channels };
 }
 
-export function getKPIs(project: string): KPIData[] {
-  const config = getConfig(project);
-  const metrics = getMetrics(project);
-  const cadence = getCadence(project);
-  const targets = config.targets.month_1 || {};
+// --- KPIs ---
 
+function getStatus(value: number, target: number): StatusLevel {
+  const ratio = target > 0 ? value / target : 0;
+  if (ratio >= 0.9) return "active";
+  if (ratio >= 0.5) return "pending";
+  return "critical";
+}
+
+export async function getKPIs(project: string): Promise<KPIData[]> {
+  const [config, metrics, cadence] = await Promise.all([
+    getConfig(project),
+    getMetrics(project),
+    getCadence(project),
+  ]);
+
+  const targets = config.targets.month_1 || {};
   const kpis: KPIData[] = [];
 
-  // Signups — field is "total_signups" in supabase connector output
+  // Signups
   const signups = metrics.channels.supabase?.metrics.total_signups ?? 0;
   const signupTarget = targets.signups || 100;
   kpis.push({
@@ -212,11 +241,11 @@ export function getKPIs(project: string): KPIData[] {
     status: getStatus(signups, signupTarget),
   });
 
-  // Free → Paid %
+  // Free -> Paid %
   const convRate = (metrics.channels.supabase?.metrics.free_to_paid_pct ?? 0) * 100;
   const convTarget = (targets.free_to_paid_pct || 0.05) * 100;
   kpis.push({
-    label: "Free→Paid",
+    label: "Free\u2192Paid",
     value: convRate,
     target: convTarget,
     unit: "%",
@@ -224,12 +253,9 @@ export function getKPIs(project: string): KPIData[] {
   });
 
   // Cadence score
-  const totalDone =
-    cadence.linkedin.posts_done + cadence.reddit.comments_done;
-  const totalTarget =
-    cadence.linkedin.posts_target + cadence.reddit.comments_target;
-  const cadenceScore =
-    totalTarget > 0 ? Math.round((totalDone / totalTarget) * 100) : 0;
+  const totalDone = cadence.linkedin.posts_done + cadence.reddit.comments_done;
+  const totalTarget = cadence.linkedin.posts_target + cadence.reddit.comments_target;
+  const cadenceScore = totalTarget > 0 ? Math.round((totalDone / totalTarget) * 100) : 0;
   kpis.push({
     label: "Cadence",
     value: cadenceScore,
@@ -238,7 +264,7 @@ export function getKPIs(project: string): KPIData[] {
     status: cadenceScore >= 80 ? "active" : cadenceScore >= 50 ? "pending" : "critical",
   });
 
-  // Branded search — file is "search-console.md" or "google_search_console.md"
+  // Branded search
   const branded =
     metrics.channels["search-console"]?.metrics.branded_search_volume
     ?? metrics.channels["google_search_console"]?.metrics.branded_search_volume
@@ -254,176 +280,194 @@ export function getKPIs(project: string): KPIData[] {
   return kpis;
 }
 
-function getStatus(value: number, target: number): StatusLevel {
-  const ratio = target > 0 ? value / target : 0;
-  if (ratio >= 0.9) return "active";
-  if (ratio >= 0.5) return "pending";
-  return "critical";
-}
+// --- Move Card ---
 
-export function moveCard(
+export async function moveCard(
   project: string,
   cardId: string,
-  fromColumn: Column,
+  _fromColumn: Column,
   toColumn: Column
-): void {
-  const boardDir = path.join(getProjectsDir(), project, "board");
-  const fromPath = path.join(boardDir, fromColumn, `${cardId}.md`);
-  const toDir = path.join(boardDir, toColumn);
-  const toPath = path.join(toDir, `${cardId}.md`);
+): Promise<void> {
+  const projectId = await getProjectId(project);
+  if (!projectId) return;
 
-  if (!fs.existsSync(fromPath)) return;
-  if (!fs.existsSync(toDir)) fs.mkdirSync(toDir, { recursive: true });
-
-  // Read, update frontmatter, write to new location
-  const raw = fs.readFileSync(fromPath, "utf-8");
-  const { data, content } = matter(raw);
-  data.column = toColumn;
-  const updated = matter.stringify(content, data);
-  fs.writeFileSync(toPath, updated);
-  fs.unlinkSync(fromPath);
+  await supabase
+    .from("gtm_cards")
+    .update({ column_name: toColumn, updated_at: new Date().toISOString() })
+    .eq("project_id", projectId)
+    .eq("slug", cardId);
 }
 
-export function getSparklineData(project: string): Record<string, Record<string, number[]>> {
-  const snapshotsDir = path.join(getProjectsDir(), project, "metrics", "snapshots");
+// --- Sparkline Data ---
+
+export async function getSparklineData(project: string): Promise<Record<string, Record<string, number[]>>> {
+  const projectId = await getProjectId(project);
   const result: Record<string, Record<string, number[]>> = {};
 
-  if (!fs.existsSync(snapshotsDir)) return result;
+  if (!projectId) return result;
 
-  const files = fs.readdirSync(snapshotsDir)
-    .filter((f) => f.endsWith(".md"))
-    .sort()
-    .slice(-8); // last 8 snapshots
+  const { data, error } = await supabase
+    .from("gtm_snapshots")
+    .select("data")
+    .eq("project_id", projectId)
+    .order("snapshot_date", { ascending: true })
+    .limit(8);
 
-  if (files.length < 2) return result;
+  if (error || !data || data.length < 2) return result;
 
-  for (const file of files) {
-    try {
-      const raw = fs.readFileSync(path.join(snapshotsDir, file), "utf-8");
-      const { data } = matter(raw);
-      const metricsMap = (data.metrics || {}) as Record<string, Record<string, number | null>>;
+  for (const row of data) {
+    const metricsMap = (row.data?.metrics || row.data || {}) as Record<string, Record<string, number | null>>;
 
-      for (const [channel, metrics] of Object.entries(metricsMap)) {
-        if (!result[channel]) result[channel] = {};
-        for (const [key, value] of Object.entries(metrics)) {
-          if (typeof value !== "number") continue;
-          if (!result[channel][key]) result[channel][key] = [];
-          result[channel][key].push(value);
-        }
+    for (const [channel, metrics] of Object.entries(metricsMap)) {
+      if (typeof metrics !== "object" || metrics === null) continue;
+      if (!result[channel]) result[channel] = {};
+      for (const [key, value] of Object.entries(metrics)) {
+        if (typeof value !== "number") continue;
+        if (!result[channel][key]) result[channel][key] = [];
+        result[channel][key].push(value);
       }
-    } catch {
-      // skip corrupt snapshot
     }
   }
 
   return result;
 }
 
-// --- New data loaders for multi-page dashboard ---
+// --- Channel History ---
 
-export function getChannelHistory(project: string, channel: string, limit = 14): SnapshotSeries {
-  const snapshotsDir = path.join(getProjectsDir(), project, "metrics", "snapshots");
+export async function getChannelHistory(project: string, channel: string, limit = 14): Promise<SnapshotSeries> {
+  const projectId = await getProjectId(project);
   const result: SnapshotSeries = { channel, dates: [], metrics: {} };
 
-  if (!fs.existsSync(snapshotsDir)) return result;
+  if (!projectId) return result;
 
-  const files = fs.readdirSync(snapshotsDir)
-    .filter((f) => f.endsWith(".md"))
-    .sort()
-    .slice(-limit);
+  const { data, error } = await supabase
+    .from("gtm_snapshots")
+    .select("snapshot_date, data")
+    .eq("project_id", projectId)
+    .order("snapshot_date", { ascending: true })
+    .limit(limit);
 
-  for (const file of files) {
-    try {
-      const raw = fs.readFileSync(path.join(snapshotsDir, file), "utf-8");
-      const { data } = matter(raw);
-      const date = path.basename(file, ".md");
-      const metricsMap = (data.metrics || {}) as Record<string, Record<string, number | null>>;
-      const channelMetrics = metricsMap[channel];
-      if (!channelMetrics) continue;
+  if (error || !data) return result;
 
-      result.dates.push(date);
-      for (const [key, value] of Object.entries(channelMetrics)) {
-        if (typeof value !== "number") continue;
-        if (!result.metrics[key]) result.metrics[key] = [];
-        result.metrics[key].push(value);
-      }
-    } catch {
-      // skip corrupt snapshot
+  for (const row of data) {
+    const metricsMap = (row.data?.metrics || row.data || {}) as Record<string, Record<string, number | null>>;
+    const channelMetrics = metricsMap[channel];
+    if (!channelMetrics) continue;
+
+    result.dates.push(row.snapshot_date);
+    for (const [key, value] of Object.entries(channelMetrics)) {
+      if (typeof value !== "number") continue;
+      if (!result.metrics[key]) result.metrics[key] = [];
+      result.metrics[key].push(value);
     }
   }
 
   return result;
 }
 
-export function getResearchHistory(project: string): ResearchEntry[] {
-  const researchDir = path.join(getProjectsDir(), project, "research");
-  if (!fs.existsSync(researchDir)) return [];
+// --- Research History ---
 
-  const files = fs.readdirSync(researchDir)
-    .filter((f) => f.endsWith(".md"))
-    .sort()
-    .reverse();
+export async function getResearchHistory(project: string): Promise<ResearchEntry[]> {
+  const projectId = await getProjectId(project);
+  if (!projectId) return [];
 
-  return files.map((file) => {
-    const raw = fs.readFileSync(path.join(researchDir, file), "utf-8");
-    const { data, content } = matter(raw);
-    const findingsCount = (content.match(/^[-*]\s/gm) || []).length;
+  const { data, error } = await supabase
+    .from("gtm_research_runs")
+    .select("run_type, findings, cards_created, created_at")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((row) => {
+    const findings = row.findings as Record<string, unknown> | unknown[] | null;
+    const findingsCount = Array.isArray(findings) ? findings.length : 0;
+    const cardsCreated = Array.isArray(row.cards_created) ? row.cards_created.length : 0;
+    const content = Array.isArray(findings)
+      ? findings.map((f: unknown) => (typeof f === "string" ? `- ${f}` : `- ${JSON.stringify(f)}`)).join("\n")
+      : JSON.stringify(findings || {});
+
     return {
-      date: path.basename(file, ".md"),
-      filename: file,
+      date: row.created_at ? row.created_at.slice(0, 10) : "",
+      filename: `${row.run_type || "research"}-${row.created_at?.slice(0, 10) || "unknown"}`,
       content,
       findingsCount,
-      cardsCreated: data.cards_created ?? 0,
+      cardsCreated,
     };
   });
 }
 
-export function getFilteredCards(project: string, filters: CardFilters): CardData[] {
-  const board = getBoard(project);
-  const allCards: CardData[] = [];
+// --- Filtered Cards ---
 
-  for (const col of COLUMNS) {
-    if (filters.excludeColumn && col === filters.excludeColumn) continue;
-    allCards.push(...board.columns[col]);
+export async function getFilteredCards(project: string, filters: CardFilters): Promise<CardData[]> {
+  const projectId = await getProjectId(project);
+  if (!projectId) return [];
+
+  let query = supabase
+    .from("gtm_cards")
+    .select("*")
+    .eq("project_id", projectId);
+
+  if (filters.excludeColumn) {
+    query = query.neq("column_name", filters.excludeColumn);
   }
 
-  return allCards.filter((card) => {
-    if (filters.channel) {
-      const channels = Array.isArray(filters.channel) ? filters.channel : [filters.channel];
-      if (!channels.includes(card.channel)) return false;
-    }
-    if (filters.type) {
-      const types = Array.isArray(filters.type) ? filters.type : [filters.type];
-      if (!types.includes(card.type)) return false;
-    }
-    if (filters.source && card.source !== filters.source) return false;
-    if (filters.tags && filters.tags.length > 0) {
-      if (!card.tags || !filters.tags.some((t) => card.tags!.includes(t))) return false;
-    }
-    return true;
-  });
-}
-
-export function getAllCards(project: string): CardData[] {
-  const board = getBoard(project);
-  const allCards: CardData[] = [];
-  for (const col of COLUMNS) {
-    allCards.push(...board.columns[col]);
+  if (filters.channel) {
+    const channels = Array.isArray(filters.channel) ? filters.channel : [filters.channel];
+    query = query.in("channel", channels);
   }
-  return allCards;
+
+  if (filters.type) {
+    const types = Array.isArray(filters.type) ? filters.type : [filters.type];
+    query = query.in("type", types);
+  }
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+
+  let cards = data.map(rowToCard);
+
+  // Apply filters that require metadata inspection (not possible in SQL)
+  if (filters.source) {
+    cards = cards.filter((c) => c.source === filters.source);
+  }
+  if (filters.tags && filters.tags.length > 0) {
+    cards = cards.filter(
+      (c) => c.tags && filters.tags!.some((t) => c.tags!.includes(t))
+    );
+  }
+
+  return cards;
 }
 
-export function getFunnelData(project: string): FunnelData {
-  const metrics = getMetrics(project);
+// --- All Cards ---
+
+export async function getAllCards(project: string): Promise<CardData[]> {
+  const projectId = await getProjectId(project);
+  if (!projectId) return [];
+
+  const { data, error } = await supabase
+    .from("gtm_cards")
+    .select("*")
+    .eq("project_id", projectId);
+
+  if (error || !data) return [];
+  return data.map(rowToCard);
+}
+
+// --- Funnel Data ---
+
+export async function getFunnelData(project: string): Promise<FunnelData> {
+  const metrics = await getMetrics(project);
   const googleAds = metrics.channels.google_ads?.metrics || {};
   const metaAds = metrics.channels.meta_ads?.metrics || {};
-  const supabase = metrics.channels.supabase?.metrics || {};
+  const sb = metrics.channels.supabase?.metrics || {};
 
   const impressions = (googleAds.google_ad_impressions ?? 0) + (metaAds.meta_ad_impressions ?? 0);
   const clicks = (googleAds.google_ad_clicks ?? 0) + (metaAds.meta_ad_clicks ?? 0);
-  const signups = supabase.total_signups ?? 0;
-  const trialing = supabase.trialing_subscriptions ?? 0;
-  const paid = supabase.active_subscriptions ?? 0;
+  const signups = sb.total_signups ?? 0;
+  const trialing = sb.trialing_subscriptions ?? 0;
+  const paid = sb.active_subscriptions ?? 0;
 
   const stages = [
     { name: "Impressions", value: impressions, conversionRate: 100 },
@@ -436,26 +480,24 @@ export function getFunnelData(project: string): FunnelData {
   return { stages };
 }
 
-export function getWeeklyDeltas(project: string): WeeklyDelta[] {
-  const snapshotsDir = path.join(getProjectsDir(), project, "metrics", "snapshots");
-  if (!fs.existsSync(snapshotsDir)) return [];
+// --- Weekly Deltas ---
 
-  const files = fs.readdirSync(snapshotsDir)
-    .filter((f) => f.endsWith(".md"))
-    .sort();
+export async function getWeeklyDeltas(project: string): Promise<WeeklyDelta[]> {
+  const projectId = await getProjectId(project);
+  if (!projectId) return [];
 
-  if (files.length < 2) return [];
+  const { data, error } = await supabase
+    .from("gtm_snapshots")
+    .select("data")
+    .eq("project_id", projectId)
+    .order("snapshot_date", { ascending: false })
+    .limit(2);
 
-  const readSnapshot = (file: string) => {
-    const raw = fs.readFileSync(path.join(snapshotsDir, file), "utf-8");
-    const { data } = matter(raw);
-    return (data.metrics || {}) as Record<string, Record<string, number | null>>;
-  };
+  if (error || !data || data.length < 2) return [];
 
-  const current = readSnapshot(files[files.length - 1]);
-  const previous = readSnapshot(files[files.length - 2]);
+  const current = (data[0].data?.metrics || data[0].data || {}) as Record<string, Record<string, number | null>>;
+  const previous = (data[1].data?.metrics || data[1].data || {}) as Record<string, Record<string, number | null>>;
 
-  const deltas: WeeklyDelta[] = [];
   const channelDisplayNames: Record<string, string> = {
     linkedin: "LinkedIn",
     reddit: "Reddit",
@@ -475,6 +517,8 @@ export function getWeeklyDeltas(project: string): WeeklyDelta[] {
     stripe: "mrr",
     supabase: "total_signups",
   };
+
+  const deltas: WeeklyDelta[] = [];
 
   for (const [ch, metricKey] of Object.entries(primaryMetrics)) {
     const curr = current[ch]?.[metricKey];
@@ -497,26 +541,26 @@ export function getWeeklyDeltas(project: string): WeeklyDelta[] {
   return deltas;
 }
 
-export function getAlerts(project: string): Alert[] {
-  const config = getConfig(project);
+// --- Alerts ---
+
+export async function getAlerts(project: string): Promise<Alert[]> {
+  const [config, metrics] = await Promise.all([
+    getConfig(project),
+    getMetrics(project),
+  ]);
+
   const alertConfig = config.alerts;
   if (!alertConfig) return [];
 
-  const metrics = getMetrics(project);
   const alerts: Alert[] = [];
 
-  // Simple threshold-based alerts: metric_name: threshold
   for (const [key, threshold] of Object.entries(alertConfig)) {
-    // Try to find this metric across all channels
     for (const [channelName, channelData] of Object.entries(metrics.channels)) {
       const value = channelData.metrics[key];
       if (typeof value !== "number") continue;
-      // CPA metrics: alert if above threshold
       if (key.includes("cpa") && value > threshold) {
         alerts.push({ channel: channelName, metric: key, value, threshold, direction: "above", severity: "warning" });
-      }
-      // Other metrics: alert if below threshold
-      else if (!key.includes("cpa") && value < threshold) {
+      } else if (!key.includes("cpa") && value < threshold) {
         alerts.push({ channel: channelName, metric: key, value, threshold, direction: "below", severity: "warning" });
       }
     }
@@ -525,25 +569,46 @@ export function getAlerts(project: string): Alert[] {
   return alerts;
 }
 
-export function getCadenceWithStreak(project: string): CadenceWithStreak {
-  const cadence = getCadence(project);
-  const cadenceBase = path.join(getProjectsDir(), project, "cadence");
+// --- Cadence With Streak ---
+
+export async function getCadenceWithStreak(project: string): Promise<CadenceWithStreak> {
+  const [cadence, projectId] = await Promise.all([
+    getCadence(project),
+    getProjectId(project),
+  ]);
+
   let streak = 0;
 
-  if (fs.existsSync(cadenceBase)) {
-    const dirs = fs.readdirSync(cadenceBase, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name)
-      .sort()
-      .reverse();
+  if (projectId) {
+    // Count consecutive weeks with cadence logs, most recent first
+    const { data } = await supabase
+      .from("gtm_cadence_logs")
+      .select("week_start")
+      .eq("project_id", projectId)
+      .eq("platform", "linkedin")
+      .eq("log_type", "posts")
+      .order("week_start", { ascending: false });
 
-    // Simple streak: count consecutive months with cadence data
-    for (const dir of dirs) {
-      const liFile = path.join(cadenceBase, dir, "linkedin.md");
-      if (fs.existsSync(liFile)) {
-        streak++;
-      } else {
-        break;
+    if (data && data.length > 0) {
+      // Count consecutive months by checking distinct month values
+      const months = new Set(data.map((r) => (r.week_start as string).slice(0, 7)));
+      const sortedMonths = Array.from(months).sort().reverse();
+
+      for (let i = 0; i < sortedMonths.length; i++) {
+        if (i === 0) {
+          streak++;
+          continue;
+        }
+        // Check if consecutive month
+        const [prevY, prevM] = sortedMonths[i - 1].split("-").map(Number);
+        const [curY, curM] = sortedMonths[i].split("-").map(Number);
+        const expectedMonth = prevM === 1 ? 12 : prevM - 1;
+        const expectedYear = prevM === 1 ? prevY - 1 : prevY;
+        if (curY === expectedYear && curM === expectedMonth) {
+          streak++;
+        } else {
+          break;
+        }
       }
     }
   }
@@ -555,26 +620,41 @@ export function getCadenceWithStreak(project: string): CadenceWithStreak {
   };
 }
 
-export function getUGCBriefs(project: string): UGCBrief[] {
-  const allCards = getAllCards(project);
-  return allCards
-    .filter((c) => c.type === "ugc" || c.channel === "ugc")
-    .map((c) => ({
-      id: c.id,
-      title: c.title,
-      creator: c.creator || c.creator_handle || "Unknown",
-      type: (c.deliverable_type as UGCBrief["type"]) || "custom",
-      approvalStatus: c.approval_status || "draft",
-      channel: c.channel === "ugc" ? undefined : c.channel,
-      dueDate: c.due_date || c.target_date,
-      paperArtboard: c.paper_artboard ?? undefined,
-      assetUrl: c.asset_url ?? undefined,
-      column: c.column,
-    }));
+// --- UGC Briefs ---
+
+export async function getUGCBriefs(project: string): Promise<UGCBrief[]> {
+  const projectId = await getProjectId(project);
+  if (!projectId) return [];
+
+  const { data, error } = await supabase
+    .from("gtm_cards")
+    .select("*")
+    .eq("project_id", projectId)
+    .or("type.eq.ugc,channel.eq.ugc");
+
+  if (error || !data) return [];
+
+  return data.map((row) => {
+    const card = rowToCard(row);
+    return {
+      id: card.id,
+      title: card.title,
+      creator: card.creator || card.creator_handle || "Unknown",
+      type: (card.deliverable_type as UGCBrief["type"]) || "custom",
+      approvalStatus: card.approval_status || "draft",
+      channel: card.channel === "ugc" ? undefined : card.channel,
+      dueDate: card.due_date || card.target_date,
+      paperArtboard: card.paper_artboard ?? undefined,
+      assetUrl: card.asset_url ?? undefined,
+      column: card.column,
+    };
+  });
 }
 
-export function getUGCPipelineStats(project: string): UGCPipelineStats {
-  const briefs = getUGCBriefs(project);
+// --- UGC Pipeline Stats ---
+
+export async function getUGCPipelineStats(project: string): Promise<UGCPipelineStats> {
+  const briefs = await getUGCBriefs(project);
   const stats: UGCPipelineStats = {
     draft: 0,
     submitted: 0,
@@ -600,12 +680,10 @@ export function getUGCPipelineStats(project: string): UGCPipelineStats {
   return stats;
 }
 
-export function getContentPipelineStats(project: string): ContentPipelineStats {
-  const board = getBoard(project);
-  const allPosts: CardData[] = [];
-  for (const col of COLUMNS) {
-    allPosts.push(...board.columns[col].filter((c) => c.type === "post"));
-  }
+// --- Content Pipeline Stats ---
+
+export async function getContentPipelineStats(project: string): Promise<ContentPipelineStats> {
+  const board = await getBoard(project);
 
   const now = new Date();
   const weekStart = new Date(now);
@@ -620,7 +698,8 @@ export function getContentPipelineStats(project: string): ContentPipelineStats {
   };
 }
 
-// Helper to build chart data from snapshot series
+// --- Chart Data (pure function, no change needed) ---
+
 export function buildChartData(
   series: SnapshotSeries,
   metricKeys: string[]
@@ -632,4 +711,99 @@ export function buildChartData(
     }
     return point;
   });
+}
+
+// --- Agent Board ---
+
+const AGENT_COLUMNS: AgentTaskColumn[] = ["queued", "in_progress", "blocked", "review", "done"];
+
+// DB uses marketing column names; map to/from agent column names
+const DB_TO_AGENT_COLUMN: Record<string, AgentTaskColumn> = {
+  backlog: "queued",
+  preparing: "in_progress",
+  live: "blocked",
+  measuring: "review",
+  done: "done",
+};
+
+const AGENT_TO_DB_COLUMN: Record<AgentTaskColumn, string> = {
+  queued: "backlog",
+  in_progress: "preparing",
+  blocked: "live",
+  review: "measuring",
+  done: "done",
+};
+
+function rowToAgentTask(row: Record<string, unknown>): AgentTaskData {
+  const meta = (row.metadata || {}) as Record<string, unknown>;
+  const details = (row.gtm_agent_task_details as Record<string, unknown> | null) ?? {};
+  const dbColumn = (row.column_name as string) || "backlog";
+
+  return {
+    id: row.slug as string,
+    card_id: row.id as string,
+    title: (row.title as string) || "Untitled",
+    column: DB_TO_AGENT_COLUMN[dbColumn] || "queued",
+    body: (row.body as string) || "",
+    assigned_agent: (details.assigned_agent as string) ?? null,
+    priority: (details.priority as AgentTaskData["priority"]) || "medium",
+    depends_on: (details.depends_on as string[]) ?? [],
+    output: (details.output as Record<string, unknown>) ?? null,
+    error: (details.error as string) ?? null,
+    started_at: (details.started_at as string) ?? null,
+    completed_at: (details.completed_at as string) ?? null,
+    retries: (details.retries as number) ?? 0,
+    tags: (meta.tags as string[]) ?? [],
+    created_at: (row.created_at as string) || "",
+    updated_at: (row.updated_at as string) || "",
+  };
+}
+
+export async function getAgentBoard(project: string): Promise<AgentBoardData> {
+  const projectId = await getProjectId(project);
+  const columns: AgentBoardData["columns"] = {
+    queued: [],
+    in_progress: [],
+    blocked: [],
+    review: [],
+    done: [],
+  };
+
+  if (!projectId) return { columns };
+
+  const { data, error } = await supabase
+    .from("gtm_cards")
+    .select("*, gtm_agent_task_details(*)")
+    .eq("project_id", projectId)
+    .eq("board", "agent-tasks")
+    .order("created_at", { ascending: false });
+
+  if (error || !data) return { columns };
+
+  for (const row of data) {
+    const task = rowToAgentTask(row);
+    if (AGENT_COLUMNS.includes(task.column)) {
+      columns[task.column].push(task);
+    }
+  }
+
+  return { columns };
+}
+
+export async function moveAgentTask(
+  project: string,
+  taskSlug: string,
+  _fromColumn: AgentTaskColumn,
+  toColumn: AgentTaskColumn
+): Promise<void> {
+  const projectId = await getProjectId(project);
+  if (!projectId) return;
+
+  const dbColumn = AGENT_TO_DB_COLUMN[toColumn];
+
+  await supabase
+    .from("gtm_cards")
+    .update({ column_name: dbColumn, updated_at: new Date().toISOString() })
+    .eq("project_id", projectId)
+    .eq("slug", taskSlug);
 }

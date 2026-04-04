@@ -180,3 +180,30 @@ export interface ContentPipelineStats {
   liveThisWeek: number;
   doneThisMonth: number;
 }
+
+// --- Agent Tasks ---
+
+export type AgentTaskColumn = "queued" | "in_progress" | "blocked" | "review" | "done";
+
+export interface AgentTaskData {
+  id: string;
+  card_id: string;
+  title: string;
+  column: AgentTaskColumn;
+  body: string;
+  assigned_agent: string | null;
+  priority: "critical" | "high" | "medium" | "low";
+  depends_on: string[];
+  output: Record<string, unknown> | null;
+  error: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  retries: number;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentBoardData {
+  columns: Record<AgentTaskColumn, AgentTaskData[]>;
+}
