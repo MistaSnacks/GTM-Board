@@ -46,6 +46,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: "OPERATIONS",
     items: [
       { label: "Kanban Board", href: "/kanban", icon: "columns" },
+      { label: "Agent Tasks", href: "/agent-tasks", icon: "bot" },
       { label: "Research", href: "/research", icon: "lightbulb" },
     ],
   },
@@ -146,6 +147,17 @@ function SidebarIcon({ name }: { name: string }) {
           <rect x="3" y="3" width="5" height="18" rx="1" />
           <rect x="10" y="3" width="5" height="18" rx="1" />
           <rect x="17" y="3" width="5" height="12" rx="1" />
+        </svg>
+      );
+    case "bot":
+      return (
+        <svg {...props}>
+          <rect x="3" y="11" width="18" height="10" rx="2" />
+          <circle cx="9" cy="16" r="1.5" fill="currentColor" stroke="none" />
+          <circle cx="15" cy="16" r="1.5" fill="currentColor" stroke="none" />
+          <path d="M12 2v4" />
+          <path d="M8 7h8" />
+          <circle cx="12" cy="2" r="1" fill="currentColor" stroke="none" />
         </svg>
       );
     case "lightbulb":
