@@ -1,7 +1,7 @@
 "use server";
 
-import { moveCard } from "@/lib/data";
-import type { Column } from "@/lib/types";
+import { moveCard, moveAgentTask } from "@/lib/data";
+import type { Column, AgentTaskColumn } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 
@@ -12,6 +12,16 @@ export async function moveCardAction(
   toColumn: Column
 ): Promise<void> {
   moveCard(project, cardId, fromColumn, toColumn);
+  revalidatePath("/", "layout");
+}
+
+export async function moveAgentTaskAction(
+  project: string,
+  taskSlug: string,
+  fromColumn: AgentTaskColumn,
+  toColumn: AgentTaskColumn
+): Promise<void> {
+  await moveAgentTask(project, taskSlug, fromColumn, toColumn);
   revalidatePath("/", "layout");
 }
 
