@@ -1,6 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
+import { createServer } from "node:http";
 
 import { loadProjectConfig, resolveProject } from "./lib/config.ts";
 import { addCard, moveCard, updateCard, listCards, getCard, setCardDescription } from "./tools/board.ts";
@@ -25,6 +27,7 @@ import { geoScore, geoTrend } from "./tools/geo.ts";
 import { trendAnalysis, funnelReport, dailyBrief } from "./tools/analytics.ts";
 import { createUgcBrief, listUgcBriefs, approveContent } from "./tools/ugc.ts";
 import { linkCreative } from "./tools/creative.ts";
+import { createAgentTask, updateAgentTask, listAgentTasks, getAgentTask } from "./tools/agent-tasks.ts";
 import { schedulePost, listScheduled, publishNow, deletePost, listAccounts, listProfiles } from "./connectors/zernio.ts";
 import {
   createMetaCampaign,
@@ -63,7 +66,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = addCard({ ...params, project });
+    const result = await addCard({ ...params, project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -78,7 +81,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = moveCard({ ...params, project });
+    const result = await moveCard({ ...params, project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -94,7 +97,7 @@ server.tool(
   async (params) => {
     const project = resolveProject(params.project);
     const parsed = JSON.parse(params.updates) as Record<string, unknown>;
-    const result = updateCard({ project, card_id: params.card_id, updates: parsed });
+    const result = await updateCard({ project, card_id: params.card_id, updates: parsed });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -110,7 +113,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = listCards({ ...params, project });
+    const result = await listCards({ ...params, project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -124,7 +127,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = getCard({ ...params, project });
+    const result = await getCard({ ...params, project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -140,7 +143,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = setCardDescription({ ...params, project });
+    const result = await setCardDescription({ ...params, project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -154,7 +157,7 @@ server.tool(
     _unused: z.string().optional().describe("No parameters needed"),
   },
   async () => {
-    const result = listProjectsInfo();
+    const result = await listProjectsInfo();
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -168,7 +171,7 @@ server.tool(
     description: z.string().optional().describe("Project description"),
   },
   async (params) => {
-    const result = createProject(params);
+    const result = await createProject(params);
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -183,7 +186,7 @@ server.tool(
   async (params) => {
     const project = resolveProject(params.project);
     const parsed = JSON.parse(params.targets) as Record<string, Record<string, number>>;
-    const result = setTargets({ project, targets: parsed });
+    const result = await setTargets({ project, targets: parsed });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -198,7 +201,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = status({ project });
+    const result = await status({ project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -239,7 +242,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = getKpis({ project, period: params.period });
+    const result = await getKpis({ project, period: params.period });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -252,7 +255,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = performanceSummary({ project });
+    const result = await performanceSummary({ project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -265,7 +268,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = snapshot({ project });
+    const result = await snapshot({ project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -286,7 +289,7 @@ server.tool(
   async (params) => {
     const project = resolveProject(params.project);
     const metrics = params.metrics ? JSON.parse(params.metrics) as Record<string, number> : undefined;
-    const result = logPost({ ...params, project, metrics });
+    const result = await logPost({ ...params, project, metrics });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -303,7 +306,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = logComment({ ...params, project });
+    const result = await logComment({ ...params, project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -317,7 +320,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = cadenceStatus({ ...params, project });
+    const result = await cadenceStatus({ ...params, project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -330,7 +333,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = cadenceStreak({ project });
+    const result = await cadenceStreak({ project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -359,7 +362,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = competitorCheck({ ...params, project });
+    const result = await competitorCheck({ ...params, project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -372,7 +375,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = findOpportunities({ project });
+    const result = await findOpportunities({ project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -386,7 +389,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = researchHistory({ project, limit: params.limit });
+    const result = await researchHistory({ project, limit: params.limit });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -401,7 +404,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = alertCheck({ project });
+    const result = await alertCheck({ project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -418,7 +421,7 @@ server.tool(
   async (params) => {
     const project = resolveProject(params.project);
     const parsed = params.metrics ? JSON.parse(params.metrics) as Record<string, number> : undefined;
-    const result = geoScore({ project, metrics: parsed });
+    const result = await geoScore({ project, metrics: parsed });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -432,7 +435,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = geoTrend({ project, periods: params.periods });
+    const result = await geoTrend({ project, periods: params.periods });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -448,7 +451,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = trendAnalysis({ project, periods: params.periods });
+    const result = await trendAnalysis({ project, periods: params.periods });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -461,7 +464,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = funnelReport({ project });
+    const result = await funnelReport({ project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -498,7 +501,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = createUgcBrief({ ...params, project });
+    const result = await createUgcBrief({ ...params, project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -513,7 +516,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = listUgcBriefs({ project, approval_status: params.approval_status, creator: params.creator });
+    const result = await listUgcBriefs({ project, approval_status: params.approval_status, creator: params.creator });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -530,7 +533,7 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = approveContent({ project, card_id: params.card_id, status: params.status, asset_url: params.asset_url, notes: params.notes });
+    const result = await approveContent({ project, card_id: params.card_id, status: params.status, asset_url: params.asset_url, notes: params.notes });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -550,7 +553,82 @@ server.tool(
   },
   async (params) => {
     const project = resolveProject(params.project);
-    const result = linkCreative({ project, card_id: params.card_id, artboard_id: params.artboard_id, formats: params.formats, copy: params.copy, creative_status: params.creative_status });
+    const result = await linkCreative({ project, card_id: params.card_id, artboard_id: params.artboard_id, formats: params.formats, copy: params.copy, creative_status: params.creative_status });
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ── Agent Tasks tools ──
+
+server.tool(
+  "gtm_create_agent_task",
+  "Create a task on the agent-tasks board with priority, assignment, and dependencies",
+  {
+    project: z.string().optional().describe("Project name (defaults to DEFAULT_PROJECT)"),
+    title: z.string().describe("Task title"),
+    assigned_agent: z.string().optional().describe("Agent name to assign (e.g. 'research-agent', 'content-agent')"),
+    priority: z.enum(["critical", "high", "medium", "low"]).optional().describe("Task priority (default medium)"),
+    column: z.enum(["backlog", "preparing", "live", "measuring", "done"]).optional().describe("Initial column (default backlog)"),
+    depends_on: z.array(z.string()).optional().describe("Array of task slugs this depends on"),
+    details: z.string().optional().describe("Task body content (markdown)"),
+    tags: z.array(z.string()).optional().describe("Tags for filtering"),
+  },
+  async (params) => {
+    const project = resolveProject(params.project);
+    const result = await createAgentTask({ ...params, project });
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  "gtm_update_agent_task",
+  "Update an agent task — change status, assign agent, record output/errors, or move columns",
+  {
+    project: z.string().optional().describe("Project name (defaults to DEFAULT_PROJECT)"),
+    task_id: z.string().describe("Task slug ID"),
+    column: z.enum(["backlog", "preparing", "live", "measuring", "done"]).optional().describe("Move to column"),
+    assigned_agent: z.string().optional().describe("Reassign to agent"),
+    priority: z.enum(["critical", "high", "medium", "low"]).optional().describe("Change priority"),
+    status: z.enum(["started", "completed", "failed"]).optional().describe("Lifecycle status — started sets started_at and moves to live, completed sets completed_at and moves to done, failed increments retries"),
+    output: z.string().optional().describe("JSON-encoded structured output from the agent"),
+    error: z.string().optional().describe("Error message if task failed"),
+    title: z.string().optional().describe("Update task title"),
+    body: z.string().optional().describe("Update task body content"),
+  },
+  async (params) => {
+    const project = resolveProject(params.project);
+    const output = params.output ? JSON.parse(params.output) as Record<string, unknown> : undefined;
+    const result = await updateAgentTask({ ...params, project, output });
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  "gtm_list_agent_tasks",
+  "List agent tasks with optional filtering by agent, priority, or column",
+  {
+    project: z.string().optional().describe("Project name (defaults to DEFAULT_PROJECT)"),
+    assigned_agent: z.string().optional().describe("Filter by assigned agent"),
+    priority: z.enum(["critical", "high", "medium", "low"]).optional().describe("Filter by priority"),
+    column: z.enum(["backlog", "preparing", "live", "measuring", "done"]).optional().describe("Filter by column"),
+  },
+  async (params) => {
+    const project = resolveProject(params.project);
+    const result = await listAgentTasks({ ...params, project });
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  "gtm_get_agent_task",
+  "Get full details of an agent task including output, errors, and dependencies",
+  {
+    project: z.string().optional().describe("Project name (defaults to DEFAULT_PROJECT)"),
+    task_id: z.string().describe("Task slug ID"),
+  },
+  async (params) => {
+    const project = resolveProject(params.project);
+    const result = await getAgentTask({ ...params, project });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -566,7 +644,7 @@ server.tool(
   async (params) => {
     try {
       const project = resolveProject(params.project);
-      const config = loadProjectConfig(project);
+      const config = await loadProjectConfig(project);
       const [profiles, accounts] = await Promise.all([
         listProfiles({ project, env: config.env }),
         listAccounts({ project, env: config.env }),
@@ -598,7 +676,7 @@ server.tool(
   async (params) => {
     try {
       const project = resolveProject(params.project);
-      const config = loadProjectConfig(project);
+      const config = await loadProjectConfig(project);
       const accountIds = params.account_ids
         ? JSON.parse(params.account_ids) as Record<string, string>
         : undefined;
@@ -629,7 +707,7 @@ server.tool(
   async (params) => {
     try {
       const project = resolveProject(params.project);
-      const config = loadProjectConfig(project);
+      const config = await loadProjectConfig(project);
       const result = await listScheduled({
         project,
         env: config.env,
@@ -652,7 +730,7 @@ server.tool(
   async (params) => {
     try {
       const project = resolveProject(params.project);
-      const config = loadProjectConfig(project);
+      const config = await loadProjectConfig(project);
       const result = await publishNow({
         project,
         env: config.env,
@@ -675,7 +753,7 @@ server.tool(
   async (params) => {
     try {
       const project = resolveProject(params.project);
-      const config = loadProjectConfig(project);
+      const config = await loadProjectConfig(project);
       const result = await deletePost({
         project,
         env: config.env,
@@ -703,7 +781,7 @@ server.tool(
   async (params) => {
     try {
       const project = resolveProject(params.project);
-      const config = loadProjectConfig(project);
+      const config = await loadProjectConfig(project);
       const result = await createMetaCampaign({
         env: config.env,
         name: params.name,
@@ -733,7 +811,7 @@ server.tool(
   async (params) => {
     try {
       const project = resolveProject(params.project);
-      const config = loadProjectConfig(project);
+      const config = await loadProjectConfig(project);
       const targeting = JSON.parse(params.targeting) as Record<string, unknown>;
       const result = await createMetaAdSet({
         env: config.env,
@@ -768,7 +846,7 @@ server.tool(
   async (params) => {
     try {
       const project = resolveProject(params.project);
-      const config = loadProjectConfig(project);
+      const config = await loadProjectConfig(project);
       const result = await createMetaAd({
         env: config.env,
         adset_id: params.adset_id,
@@ -802,7 +880,7 @@ server.tool(
   async (params) => {
     try {
       const project = resolveProject(params.project);
-      const config = loadProjectConfig(project);
+      const config = await loadProjectConfig(project);
       const updates: Record<string, unknown> = {};
       if (params.status) updates.status = params.status;
       if (params.name) updates.name = params.name;
@@ -830,7 +908,7 @@ server.tool(
   async (params) => {
     try {
       const project = resolveProject(params.project);
-      const config = loadProjectConfig(project);
+      const config = await loadProjectConfig(project);
       const result = await listMetaCampaigns({
         env: config.env,
         status: params.status,
@@ -858,7 +936,7 @@ server.tool(
   async (params) => {
     try {
       const project = resolveProject(params.project);
-      const config = loadProjectConfig(project);
+      const config = await loadProjectConfig(project);
       const result = await createGoogleCampaign({
         env: config.env,
         name: params.name,
@@ -885,7 +963,7 @@ server.tool(
   async (params) => {
     try {
       const project = resolveProject(params.project);
-      const config = loadProjectConfig(project);
+      const config = await loadProjectConfig(project);
       const result = await createGoogleAdGroup({
         env: config.env,
         campaign_id: params.campaign_id,
@@ -914,7 +992,7 @@ server.tool(
   async (params) => {
     try {
       const project = resolveProject(params.project);
-      const config = loadProjectConfig(project);
+      const config = await loadProjectConfig(project);
       const headlines = JSON.parse(params.headlines) as string[];
       const descriptions = JSON.parse(params.descriptions) as string[];
       const final_urls = JSON.parse(params.final_urls) as string[];
@@ -946,7 +1024,7 @@ server.tool(
   async (params) => {
     try {
       const project = resolveProject(params.project);
-      const config = loadProjectConfig(project);
+      const config = await loadProjectConfig(project);
       const updates: Record<string, unknown> = {};
       if (params.status) updates.status = params.status;
       if (params.name) updates.name = params.name;
@@ -973,7 +1051,7 @@ server.tool(
   async (params) => {
     try {
       const project = resolveProject(params.project);
-      const config = loadProjectConfig(project);
+      const config = await loadProjectConfig(project);
       const result = await listGoogleCampaigns({
         env: config.env,
         status: params.status,
@@ -1009,6 +1087,12 @@ server.tool(
 - gtm_list_cards — List/filter cards by column, type, or channel
 - gtm_get_card — Read full card content and frontmatter
 - gtm_set_card_description — Set card description and body content
+
+## Agent Tasks
+- gtm_create_agent_task — Create a task on the agent-tasks board with priority and assignment
+- gtm_update_agent_task — Update status (started/completed/failed), assign agent, record output/errors
+- gtm_list_agent_tasks — List/filter agent tasks by agent, priority, or column
+- gtm_get_agent_task — Get full task details including output and dependencies
 
 ## Content Cadence
 - gtm_log_post — Log a LinkedIn/Reddit post to track schedule adherence
@@ -1077,8 +1161,43 @@ server.tool(
 // ── Start server ──
 
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  const httpPort = process.env.MCP_HTTP_PORT ?? (process.argv.includes("--http") ? "3100" : undefined);
+
+  if (httpPort) {
+    const port = Number(httpPort);
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => crypto.randomUUID(),
+    });
+
+    await server.connect(transport);
+
+    const httpServer = createServer((req, res) => {
+      const url = new URL(req.url ?? "/", `http://localhost:${port}`);
+
+      if (url.pathname === "/health") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "ok" }));
+        return;
+      }
+
+      if (url.pathname === "/mcp") {
+        transport.handleRequest(req, res);
+        return;
+      }
+
+      res.writeHead(404);
+      res.end("Not found");
+    });
+
+    httpServer.listen(port, () => {
+      console.error(`MCP HTTP server listening on port ${port}`);
+      console.error(`  POST http://localhost:${port}/mcp`);
+      console.error(`  GET  http://localhost:${port}/health`);
+    });
+  } else {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+  }
 }
 
 main().catch((err) => {
