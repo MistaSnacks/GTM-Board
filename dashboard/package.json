@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@hello-pangea/dnd": "^17.0.0",
+    "@hello-pangea/dnd": "^18.0.1",
     "@supabase/supabase-js": "^2.101.1",
     "framer-motion": "^11.0.0",
     "gray-matter": "^4.0.3",
