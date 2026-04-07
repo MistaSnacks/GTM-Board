@@ -6,12 +6,13 @@
 
 ## Goal
 
-Make cards on both the marketing kanban board and the agent tasks board configurable in the same way: users (and agents) can break a card down into actionable items and check them off as they complete. Two complementary mechanisms:
+Make cards on both the marketing kanban board and the agent tasks board configurable in the same way: users (and agents) can break a card down into actionable items, check them off as they complete, and attach reference docs. Three complementary mechanisms:
 
 1. **Inline checklist** — interactive `- [ ]` items rendered from the card's existing markdown body, toggleable in the detail modal.
 2. **Structured subtasks** — a lightweight, queryable list of subtask records attached to a card, with title, status, and assignee.
+3. **Reference docs** — a structured list of links (title + URL/path) attached to each card, so agents can programmatically pull in playbooks, briefs, or any markdown reference. Plus markdown links inside the card body are rendered as real clickable anchors.
 
-Both boards (marketing, agent-tasks) get both features. The card detail modal becomes the single place to manage them.
+Both boards (marketing, agent-tasks) get all three. The card detail modal becomes the single place to manage them.
 
 ## Non-goals
 
@@ -19,6 +20,7 @@ Both boards (marketing, agent-tasks) get both features. The card detail modal be
 - Subtasks do not have priorities, due dates, or notes in v1 (intentionally minimal).
 - No real-time multi-user sync; mutations revalidate via the existing server-action pattern.
 - No bulk import/export of subtasks in v1.
+- Reference docs are not fetched and rendered inline — clicking a reference opens the URL in a new tab. (Inline markdown rendering of linked files is deferred to a later iteration.)
 
 ## Architecture
 
@@ -45,7 +47,7 @@ create index gtm_subtasks_card_sort_idx on public.gtm_subtasks(card_id, sort_ord
 
 A trigger updates `updated_at` on row update (matching the existing pattern used elsewhere in the schema).
 
-No changes to `gtm_cards` or `gtm_agent_task_details`. Inline checklist state lives inside the existing `body` markdown column — toggling a checkbox rewrites the markdown line in place.
+No schema changes to `gtm_cards` or `gtm_agent_task_details`. Inline checklist state lives inside the existing `body` markdown column — toggling a checkbox rewrites the markdown line in place. Reference docs are stored as a JSON array under a new `references` key in the existing `gtm_cards.metadata` jsonb column — no migration needed for that part. Each entry has the shape `{ id: string, title: string, url: string }` where `id` is a stable client-generated uuid so individual entries can be edited or deleted.
 
 ### Types (`dashboard/lib/types.ts`)
 
@@ -67,9 +69,17 @@ export interface CardProgress {
   checklist: { done: number; total: number };
   subtasks:  { done: number; total: number };
 }
+
+export interface CardReference {
+  id: string;     // client-generated uuid, stable across edits
+  title: string;
+  url: string;    // http(s) url, mailto, or repo-relative path
+}
 ```
 
-`CardData` and `AgentTaskData` both gain an optional `progress?: CardProgress` field, populated by the data layer when loading boards so cards can render the badge without an extra round trip.
+`CardData` and `AgentTaskData` both gain:
+- an optional `progress?: CardProgress` field, populated by the data layer when loading boards so cards can render the badge without an extra round trip.
+- an optional `references?: CardReference[]` field, read from `metadata.references`.
 
 ### Data layer (`dashboard/lib/data.ts`)
 
@@ -84,6 +94,9 @@ New functions:
 | `reorderSubtasks(cardId, orderedIds[])` | Persist a new ordering after drag-reorder. |
 | `toggleChecklistItem(cardId, lineIndex)` | Load card body, flip the `- [ ]`/`- [x]` on the given line, write back. |
 | `getCardProgress(cardId)` | Compute checklist + subtask totals. Used during board load. |
+| `addReference(cardId, ref)` | Append a reference to `metadata.references`. |
+| `updateReference(cardId, refId, patch)` | Update title/url of a reference by id. |
+| `deleteReference(cardId, refId)` | Remove a reference by id. |
 
 `getBoard()` and `getAgentBoard()` are extended to populate `progress` for every card in a single batched query (count subtasks per card, parse checklist from each body) so the board view stays fast.
 
@@ -98,6 +111,9 @@ New actions, each calling the corresponding data function and `revalidatePath("/
 - `deleteSubtaskAction`
 - `reorderSubtasksAction`
 - `toggleChecklistItemAction`
+- `addReferenceAction`
+- `updateReferenceAction`
+- `deleteReferenceAction`
 
 ### Components
 
@@ -110,14 +126,20 @@ New actions, each calling the corresponding data function and `revalidatePath("/
 - Accepts an optional `agentTask?: AgentTaskData` prop so the modal can render agent-specific metadata (assigned agent, priority, error, retries) when present.
 - Single scrollable panel, sections in this order:
   1. Existing header (title, badges, dates, description, metrics)
-  2. **Body** — markdown rendering, with checklist lines rendered as real `<input type="checkbox">` controls. Clicking calls `toggleChecklistItemAction` with the line index.
+  2. **Body** — markdown rendering, with checklist lines rendered as real `<input type="checkbox">` controls. Clicking calls `toggleChecklistItemAction` with the line index. Plain markdown links `[text](url)` in the body are rendered as real anchor tags (`target="_blank" rel="noopener noreferrer"` for external URLs).
   3. **Subtasks** — list of subtasks with: status select (pending/in_progress/done), title (inline editable), assignee (inline editable), drag handle for reordering, delete button. An "Add subtask" row at the bottom.
+  4. **Reference docs** — list of references rendered as clickable rows (title links to URL, opens in new tab). Inline editable title/url, delete button, and an "Add reference" row at the bottom. URLs are validated as either an http(s) URL, mailto, or a repo-relative path beginning with `/`.
 - Optimistic UI: subtask mutations and checklist toggles update local state immediately, then call the server action; on error, revert.
 
 **`components/subtask-list.tsx`** (new)
 - Self-contained component that owns the subtask list UI and optimistic state.
 - Receives `cardId` and initial `subtasks` as props.
 - Uses `@hello-pangea/dnd` (already in the project) for reordering.
+
+**`components/reference-list.tsx`** (new)
+- Self-contained component for the reference docs section with optimistic state.
+- Receives `cardId` and initial `references` as props.
+- Add / edit / delete only — no reordering in v1.
 
 ### Agent tasks board wiring (`app/agent-tasks/agent-tasks-client.tsx`)
 
@@ -157,10 +179,12 @@ The agent tasks client gains a card-click handler that opens the shared detail m
 
 - **Unit:** `parseChecklist` — empty body, no checklists, mixed lines, indented checklists, malformed brackets.
 - **Unit:** `toggleChecklistItem` — flips correct line, leaves others alone, no-ops on out-of-range index.
-- **Integration (data layer):** subtask CRUD round trip against a Supabase test instance; reorder persistence; cascade delete when parent card is deleted.
+- **Unit:** reference URL validation — accepts http(s), mailto, repo-relative paths; rejects javascript: and other schemes.
+- **Integration (data layer):** subtask CRUD round trip against a Supabase test instance; reorder persistence; cascade delete when parent card is deleted. Reference CRUD round trip via metadata patches.
 - **Component:** `subtask-list` renders, adds, reorders, deletes optimistically; error path reverts.
-- **Component:** `card-detail-modal` opens for both card types and renders agent task metadata when present.
-- **Manual smoke:** open a card on each board, add 3 subtasks, reorder, mark one done, toggle a markdown checklist item, close the modal, confirm the card badge reflects the new totals.
+- **Component:** `reference-list` renders, adds, edits, deletes optimistically; invalid URL is rejected with inline error.
+- **Component:** `card-detail-modal` opens for both card types and renders agent task metadata when present. Markdown links in the body are clickable.
+- **Manual smoke:** open a card on each board, add 3 subtasks, reorder, mark one done, toggle a markdown checklist item, add a reference doc, click it to open, close the modal, confirm the card badge reflects the new totals.
 
 ## Migration & rollout
 
@@ -174,12 +198,13 @@ The agent tasks client gains a card-click handler that opens the shared detail m
 - `supabase/migrations/20260406_001_add_subtasks.sql`
 - `dashboard/lib/checklist.ts`
 - `dashboard/components/subtask-list.tsx`
+- `dashboard/components/reference-list.tsx`
 
 **Modified:**
-- `dashboard/lib/types.ts` — add `SubtaskData`, `CardProgress`, optional `progress` on card types
-- `dashboard/lib/data.ts` — add subtask functions, checklist toggle, progress population in `getBoard`/`getAgentBoard`
-- `dashboard/app/actions.ts` — new server actions
+- `dashboard/lib/types.ts` — add `SubtaskData`, `CardProgress`, `CardReference`, optional `progress` and `references` on card types
+- `dashboard/lib/data.ts` — add subtask functions, checklist toggle, reference functions, progress + references population in `getBoard`/`getAgentBoard`
+- `dashboard/app/actions.ts` — new server actions for subtasks, checklist, references
 - `dashboard/components/kanban-card.tsx` — progress badge
 - `dashboard/components/agent-task-card.tsx` — progress badge
-- `dashboard/components/card-detail-modal.tsx` — interactive checklist, subtask section, agent task metadata
+- `dashboard/components/card-detail-modal.tsx` — interactive checklist, subtask section, references section, clickable markdown links, agent task metadata
 - `dashboard/app/agent-tasks/agent-tasks-client.tsx` — wire up card click → detail modal
