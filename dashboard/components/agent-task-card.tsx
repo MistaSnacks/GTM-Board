@@ -103,6 +103,24 @@ export default function AgentTaskCard({ task, onClick }: AgentTaskCardProps) {
             ERR {task.retries > 0 ? `(${task.retries})` : ""}
           </span>
         )}
+
+        {task.progress && (task.progress.checklist.total + task.progress.subtasks.total) > 0 && (
+          <span
+            style={{
+              fontSize: "10px",
+              fontFamily: "var(--font-mono)",
+              letterSpacing: "0.05em",
+              background: "color-mix(in srgb, var(--mint) 12%, transparent)",
+              color: "var(--mint)",
+              padding: "1px 6px",
+              borderRadius: "4px",
+            }}
+            title="Checklist + subtasks"
+          >
+            ✓ {task.progress.checklist.done + task.progress.subtasks.done}/
+            {task.progress.checklist.total + task.progress.subtasks.total}
+          </span>
+        )}
       </div>
 
       {/* Tags row */}
