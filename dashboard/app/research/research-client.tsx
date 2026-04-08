@@ -10,9 +10,10 @@ import type { ResearchEntry, CardData } from "@/lib/types";
 interface ResearchClientProps {
   research: ResearchEntry[];
   researchCards: CardData[];
+  project: string;
 }
 
-export default function ResearchClient({ research, researchCards }: ResearchClientProps) {
+export default function ResearchClient({ research, researchCards, project }: ResearchClientProps) {
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const selected = research[selectedIndex];
@@ -111,7 +112,7 @@ export default function ResearchClient({ research, researchCards }: ResearchClie
         </div>
       )}
 
-      <CardDetailModal card={selectedCard} onClose={() => setSelectedCard(null)} />
+      <CardDetailModal card={selectedCard} project={project} onClose={() => setSelectedCard(null)} />
     </div>
   );
 }

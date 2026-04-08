@@ -15,7 +15,7 @@ export default async function BacklinksPage() {
 
   return (
     <PageShell projects={projects} activeProject={activeProject}>
-      <BacklinksClient cards={allCards} />
+      <BacklinksClient cards={allCards} project={activeProject} />
     </PageShell>
   );
 }

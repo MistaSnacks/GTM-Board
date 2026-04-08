@@ -9,9 +9,10 @@ import type { CardData } from "@/lib/types";
 
 interface BacklinksClientProps {
   cards: CardData[];
+  project: string;
 }
 
-export default function BacklinksClient({ cards }: BacklinksClientProps) {
+export default function BacklinksClient({ cards, project }: BacklinksClientProps) {
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const liveCount = cards.filter((c) => c.column === "live" || c.column === "done").length;
 
@@ -56,7 +57,7 @@ export default function BacklinksClient({ cards }: BacklinksClientProps) {
         </div>
       )}
 
-      <CardDetailModal card={selectedCard} onClose={() => setSelectedCard(null)} />
+      <CardDetailModal card={selectedCard} project={project} onClose={() => setSelectedCard(null)} />
 
       {cards.length === 0 && (
         <div

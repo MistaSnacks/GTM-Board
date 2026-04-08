@@ -22,6 +22,7 @@ export default async function SEOPage() {
         updatedAt={seoMetrics?.updated_at ?? ""}
         chartData={chartData}
         seoCards={seoCards}
+        project={activeProject}
       />
     </PageShell>
   );

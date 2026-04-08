@@ -13,6 +13,7 @@ interface UGCClientProps {
   briefs: UGCBrief[];
   stats: UGCPipelineStats;
   ugcCards: CardData[];
+  project: string;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -38,7 +39,7 @@ function StatusDot({ status }: { status: string }) {
   );
 }
 
-export default function UGCClient({ briefs, stats, ugcCards }: UGCClientProps) {
+export default function UGCClient({ briefs, stats, ugcCards, project }: UGCClientProps) {
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const hasData = stats.total > 0;
 
@@ -201,7 +202,7 @@ export default function UGCClient({ briefs, stats, ugcCards }: UGCClientProps) {
         </div>
       )}
 
-      <CardDetailModal card={selectedCard} onClose={() => setSelectedCard(null)} />
+      <CardDetailModal card={selectedCard} project={project} onClose={() => setSelectedCard(null)} />
     </div>
   );
 }

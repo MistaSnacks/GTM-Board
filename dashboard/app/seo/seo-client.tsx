@@ -14,9 +14,10 @@ interface SEOClientProps {
   updatedAt: string;
   chartData: Record<string, unknown>[];
   seoCards: CardData[];
+  project: string;
 }
 
-export default function SEOClient({ metrics, updatedAt, chartData, seoCards }: SEOClientProps) {
+export default function SEOClient({ metrics, updatedAt, chartData, seoCards, project }: SEOClientProps) {
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const metricCards = [
     { label: "Organic Clicks", value: metrics.organic_clicks ?? 0 },
@@ -77,7 +78,7 @@ export default function SEOClient({ metrics, updatedAt, chartData, seoCards }: S
         </div>
       )}
 
-      <CardDetailModal card={selectedCard} onClose={() => setSelectedCard(null)} />
+      <CardDetailModal card={selectedCard} project={project} onClose={() => setSelectedCard(null)} />
 
       {!chartData.length && Object.values(metrics).every((v) => v == null || v === 0) && (
         <div className="empty-state" style={{ marginTop: "24px" }}>

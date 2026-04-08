@@ -22,6 +22,7 @@ export default async function MetaAdsPage() {
         updatedAt={adMetrics?.updated_at ?? ""}
         chartData={chartData}
         adCards={adCards}
+        project={activeProject}
       />
     </PageShell>
   );

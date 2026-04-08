@@ -49,7 +49,7 @@
 **Files:**
 - Create: `supabase/migrations/20260406_001_add_subtasks.sql`
 
-- [ ] **Step 1: Write the migration**
+- [x] **Step 1: Write the migration**
 
 Create `supabase/migrations/20260406_001_add_subtasks.sql`:
 
@@ -77,7 +77,7 @@ create trigger trg_subtasks_updated_at
   for each row execute function gtm_set_updated_at();
 ```
 
-- [ ] **Step 2: Apply the migration to Supabase**
+- [x] **Step 2: Apply the migration to Supabase**
 
 Run from repo root:
 
@@ -87,7 +87,9 @@ cd /Users/admin/gtm-board && supabase db push
 
 Expected: migration applied successfully. If `supabase` CLI is not configured, fall back to running the SQL directly via the Supabase SQL Editor and confirm with the user.
 
-- [ ] **Step 3: Verify the table exists**
+- [x] **Step 3: Verify the table exists**
+
+> NOTE: `supabase db diff` requires Docker which is not running. Verified via successful `supabase db push` output ("Applying migration ... Finished").
 
 ```bash
 cd /Users/admin/gtm-board && supabase db diff --schema public 2>&1 | head -20
@@ -95,7 +97,7 @@ cd /Users/admin/gtm-board && supabase db diff --schema public 2>&1 | head -20
 
 Expected: no diff, or only the expected new table. Alternatively run `select count(*) from gtm_subtasks;` via the SQL editor and confirm it returns `0`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add supabase/migrations/20260406_001_add_subtasks.sql && git commit -m "feat(db): add gtm_subtasks table for per-card subtask records"
@@ -108,7 +110,7 @@ cd /Users/admin/gtm-board && git add supabase/migrations/20260406_001_add_subtas
 **Files:**
 - Modify: `dashboard/lib/types.ts`
 
-- [ ] **Step 1: Add new types and extend existing card types**
+- [x] **Step 1: Add new types and extend existing card types**
 
 Open `dashboard/lib/types.ts`. At the end of the file (after the `AgentBoardData` interface), append:
 
@@ -154,7 +156,7 @@ And extend `AgentTaskData` (lines 188–205): add the same two fields just befor
   references?: CardReference[];
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck
@@ -162,7 +164,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck
 
 Expected: PASS (zero errors). If errors mention missing references in other files, ignore for now — we'll fix as we touch them.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add dashboard/lib/types.ts && git commit -m "feat(types): add SubtaskData, CardProgress, CardReference"
@@ -176,7 +178,7 @@ cd /Users/admin/gtm-board && git add dashboard/lib/types.ts && git commit -m "fe
 - Create: `dashboard/lib/checklist.ts`
 - Create: `dashboard/test/checklist.test.mjs`
 
-- [ ] **Step 1: Write the failing tests first**
+- [x] **Step 1: Write the failing tests first**
 
 Create `dashboard/test/checklist.test.mjs`:
 
@@ -236,7 +238,7 @@ test("toggleChecklistLine throws when target line is not a checklist", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Node's built-in runner with TS loader. From the dashboard dir:
 
@@ -248,7 +250,7 @@ Expected: FAIL — module `../lib/checklist.ts` does not exist.
 
 (Note: Node 22+ supports `--experimental-strip-types` to import `.ts` files directly. The repo's `@types/node` is `^22.0.0`, so Node 22 is the assumed runtime.)
 
-- [ ] **Step 3: Implement `dashboard/lib/checklist.ts`**
+- [x] **Step 3: Implement `dashboard/lib/checklist.ts`**
 
 Create `dashboard/lib/checklist.ts`:
 
@@ -294,7 +296,7 @@ export function toggleChecklistLine(body: string, lineIndex: number): string {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && node --test --experimental-strip-types test/checklist.test.mjs 2>&1 | tail -20
@@ -302,7 +304,7 @@ cd /Users/admin/gtm-board/dashboard && node --test --experimental-strip-types te
 
 Expected: all tests pass (`# pass 9`, `# fail 0`).
 
-- [ ] **Step 5: Typecheck**
+- [x] **Step 5: Typecheck**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck
@@ -310,7 +312,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add dashboard/lib/checklist.ts dashboard/test/checklist.test.mjs && git commit -m "feat(checklist): add parseChecklist and toggleChecklistLine helpers"
@@ -324,7 +326,7 @@ cd /Users/admin/gtm-board && git add dashboard/lib/checklist.ts dashboard/test/c
 - Create: `dashboard/lib/references.ts`
 - Create: `dashboard/test/references.test.mjs`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `dashboard/test/references.test.mjs`:
 
@@ -374,7 +376,7 @@ test("generateReferenceId returns unique values", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && node --test --experimental-strip-types test/references.test.mjs 2>&1 | tail -20
@@ -382,7 +384,7 @@ cd /Users/admin/gtm-board/dashboard && node --test --experimental-strip-types te
 
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement `dashboard/lib/references.ts`**
+- [x] **Step 3: Implement `dashboard/lib/references.ts`**
 
 Create `dashboard/lib/references.ts`:
 
@@ -406,7 +408,7 @@ export function generateReferenceId(): string {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && node --test --experimental-strip-types test/references.test.mjs 2>&1 | tail -20
@@ -414,7 +416,7 @@ cd /Users/admin/gtm-board/dashboard && node --test --experimental-strip-types te
 
 Expected: all 8 tests pass.
 
-- [ ] **Step 5: Typecheck**
+- [x] **Step 5: Typecheck**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck
@@ -422,7 +424,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add dashboard/lib/references.ts dashboard/test/references.test.mjs && git commit -m "feat(references): add URL validation and id generation helpers"
@@ -435,7 +437,7 @@ cd /Users/admin/gtm-board && git add dashboard/lib/references.ts dashboard/test/
 **Files:**
 - Modify: `dashboard/lib/data.ts`
 
-- [ ] **Step 1: Add subtask functions to `data.ts`**
+- [x] **Step 1: Add subtask functions to `data.ts`**
 
 Open `dashboard/lib/data.ts`. Add `SubtaskData` and `SubtaskStatus` to the type imports at the top:
 
@@ -566,7 +568,7 @@ export async function reorderSubtasks(
 }
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck
@@ -574,7 +576,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add dashboard/lib/data.ts && git commit -m "feat(data): add subtask CRUD functions"
@@ -587,7 +589,7 @@ cd /Users/admin/gtm-board && git add dashboard/lib/data.ts && git commit -m "fea
 **Files:**
 - Modify: `dashboard/lib/data.ts`
 
-- [ ] **Step 1: Add the import and function**
+- [x] **Step 1: Add the import and function**
 
 In `dashboard/lib/data.ts`, add this import near the top (right after the `getConfig` import):
 
@@ -634,7 +636,7 @@ export async function toggleChecklistItem(
 }
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck
@@ -642,7 +644,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add dashboard/lib/data.ts && git commit -m "feat(data): add toggleChecklistItem for interactive markdown checklists"
@@ -655,7 +657,7 @@ cd /Users/admin/gtm-board && git add dashboard/lib/data.ts && git commit -m "fea
 **Files:**
 - Modify: `dashboard/lib/data.ts`
 
-- [ ] **Step 1: Add the type import and helper**
+- [x] **Step 1: Add the type import and helper**
 
 In `dashboard/lib/data.ts` type imports, add `CardReference`:
 
@@ -751,7 +753,7 @@ export async function deleteReference(
 }
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck
@@ -759,7 +761,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add dashboard/lib/data.ts && git commit -m "feat(data): add reference CRUD on card metadata"
@@ -772,7 +774,7 @@ cd /Users/admin/gtm-board && git add dashboard/lib/data.ts && git commit -m "fea
 **Files:**
 - Modify: `dashboard/lib/data.ts`
 
-- [ ] **Step 1: Add helpers and update `rowToCard` / `rowToAgentTask`**
+- [x] **Step 1: Add helpers and update `rowToCard` / `rowToAgentTask`**
 
 In `dashboard/lib/data.ts`, add these imports near the top (next to the existing `toggleChecklistLine` import):
 
@@ -828,7 +830,7 @@ Similarly, update `rowToAgentTask` to add `references` from `meta`. After the ex
     references: readReferences(meta),
 ```
 
-- [ ] **Step 2: Update `getBoard` to populate `progress` for every card**
+- [x] **Step 2: Update `getBoard` to populate `progress` for every card**
 
 Replace the `getBoard` function body (currently lines 72–101) with this version that batches subtask counts in one query:
 
@@ -899,7 +901,7 @@ async function loadSubtaskTotals(
 }
 ```
 
-- [ ] **Step 3: Update `getAgentBoard` similarly**
+- [x] **Step 3: Update `getAgentBoard` similarly**
 
 Replace the `getAgentBoard` function body (currently lines 762–791) with:
 
@@ -943,7 +945,7 @@ export async function getAgentBoard(project: string): Promise<AgentBoardData> {
 }
 ```
 
-- [ ] **Step 4: Typecheck**
+- [x] **Step 4: Typecheck**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck
@@ -951,7 +953,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add dashboard/lib/data.ts && git commit -m "feat(data): populate progress and references on board loads"
@@ -964,7 +966,7 @@ cd /Users/admin/gtm-board && git add dashboard/lib/data.ts && git commit -m "fea
 **Files:**
 - Modify: `dashboard/app/actions.ts`
 
-- [ ] **Step 1: Add the new actions**
+- [x] **Step 1: Add the new actions**
 
 Replace the entire contents of `dashboard/app/actions.ts` with:
 
@@ -1103,7 +1105,7 @@ export async function deleteReferenceAction(
 }
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck
@@ -1111,7 +1113,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add dashboard/app/actions.ts && git commit -m "feat(actions): add server actions for subtasks, checklist toggle, references"
@@ -1124,7 +1126,7 @@ cd /Users/admin/gtm-board && git add dashboard/app/actions.ts && git commit -m "
 **Files:**
 - Create: `dashboard/components/subtask-list.tsx`
 
-- [ ] **Step 1: Create the component**
+- [x] **Step 1: Create the component**
 
 Create `dashboard/components/subtask-list.tsx`:
 
@@ -1365,7 +1367,7 @@ export default function SubtaskList({ project, cardSlug, initialSubtasks }: Subt
 }
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck
@@ -1373,7 +1375,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add dashboard/components/subtask-list.tsx && git commit -m "feat(ui): add SubtaskList component with drag-reorder and inline editing"
@@ -1386,7 +1388,7 @@ cd /Users/admin/gtm-board && git add dashboard/components/subtask-list.tsx && gi
 **Files:**
 - Create: `dashboard/components/reference-list.tsx`
 
-- [ ] **Step 1: Create the component**
+- [x] **Step 1: Create the component**
 
 Create `dashboard/components/reference-list.tsx`:
 
@@ -1605,7 +1607,7 @@ export default function ReferenceList({ project, cardSlug, initialReferences }: 
 }
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck
@@ -1613,7 +1615,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add dashboard/components/reference-list.tsx && git commit -m "feat(ui): add ReferenceList component with URL validation"
@@ -1626,7 +1628,7 @@ cd /Users/admin/gtm-board && git add dashboard/components/reference-list.tsx && 
 **Files:**
 - Modify: `dashboard/components/card-detail-modal.tsx`
 
-- [ ] **Step 1: Add new imports**
+- [x] **Step 1: Add new imports**
 
 At the top of `dashboard/components/card-detail-modal.tsx`, replace the existing imports with:
 
@@ -1641,7 +1643,7 @@ import SubtaskList from "./subtask-list";
 import ReferenceList from "./reference-list";
 ```
 
-- [ ] **Step 2: Update the props interface**
+- [x] **Step 2: Update the props interface**
 
 Replace the existing `CardDetailModalProps` interface with:
 
@@ -1655,7 +1657,7 @@ interface CardDetailModalProps {
 }
 ```
 
-- [ ] **Step 3: Replace `renderMarkdownLine` with a version that supports interactive checkboxes and links**
+- [x] **Step 3: Replace `renderMarkdownLine` with a version that supports interactive checkboxes and links**
 
 Replace the entire `renderMarkdownLine` function with:
 
@@ -1792,7 +1794,7 @@ function renderMarkdownLine(
 }
 ```
 
-- [ ] **Step 4: Update the component body**
+- [x] **Step 4: Update the component body**
 
 Replace the function `CardDetailModal` (everything from `export default function CardDetailModal` through the closing brace at the end of the file) with:
 
@@ -2088,7 +2090,7 @@ export default function CardDetailModal({
 }
 ```
 
-- [ ] **Step 5: Typecheck**
+- [x] **Step 5: Typecheck**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck
@@ -2096,7 +2098,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck
 
 Expected: PASS. If you see "Property 'project' is missing in type" errors elsewhere — that's expected; the next task fixes those callers.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add dashboard/components/card-detail-modal.tsx && git commit -m "feat(ui): redesign card detail modal with interactive checklists, subtasks, references"
@@ -2109,7 +2111,9 @@ cd /Users/admin/gtm-board && git add dashboard/components/card-detail-modal.tsx 
 **Files:**
 - Modify: `dashboard/app/kanban/kanban-client.tsx`
 
-- [ ] **Step 1: Inspect the file to find the modal usage**
+> NOTE: The actual `<CardDetailModal />` usage for kanban is not in `kanban-client.tsx` — it lives in `components/kanban-board.tsx` (which already receives `project` as a prop). Updated there instead. Additionally, Task 12 made `project` a required prop, breaking 8 other callers (`backlinks`, `content`, `google-ads`, `meta-ads`, `research`, `seo`, `socials`, `ugc` clients + their `page.tsx` wrappers). Fixed all of those in this same commit so typecheck can pass.
+
+- [x] **Step 1: Inspect the file to find the modal usage**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && grep -n "CardDetailModal" app/kanban/kanban-client.tsx
@@ -2117,7 +2121,7 @@ cd /Users/admin/gtm-board/dashboard && grep -n "CardDetailModal" app/kanban/kanb
 
 Expected: one or two matches (an import line and a JSX usage).
 
-- [ ] **Step 2: Update the JSX usage**
+- [x] **Step 2: Update the JSX usage**
 
 In `dashboard/app/kanban/kanban-client.tsx`, find the `<CardDetailModal ... />` element. Add a `project={project}` prop. (The component already receives `project` as a prop, so no other changes needed.) Example resulting line:
 
@@ -2127,7 +2131,7 @@ In `dashboard/app/kanban/kanban-client.tsx`, find the `<CardDetailModal ... />` 
 
 If the component uses `onClick` handlers but doesn't already destructure `project`, also confirm the props interface receives it. (It already does — see `KanbanClientProps`.)
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck
@@ -2135,7 +2139,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add dashboard/app/kanban/kanban-client.tsx && git commit -m "fix(kanban): pass project prop to updated CardDetailModal"

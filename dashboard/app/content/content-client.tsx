@@ -12,11 +12,12 @@ interface ContentClientProps {
   stats: ContentPipelineStats;
   postCards: CardData[];
   cadence: CadenceData;
+  project: string;
 }
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-export default function ContentClient({ stats, postCards, cadence }: ContentClientProps) {
+export default function ContentClient({ stats, postCards, cadence, project }: ContentClientProps) {
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   // Build posting calendar from cadence schedule
   const scheduledByDay: Record<string, string[]> = {};
@@ -110,7 +111,7 @@ export default function ContentClient({ stats, postCards, cadence }: ContentClie
         </motion.div>
       </div>
 
-      <CardDetailModal card={selectedCard} onClose={() => setSelectedCard(null)} />
+      <CardDetailModal card={selectedCard} project={project} onClose={() => setSelectedCard(null)} />
     </div>
   );
 }

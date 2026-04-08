@@ -15,6 +15,7 @@ interface GoogleAdsClientProps {
   updatedAt: string;
   chartData: Record<string, unknown>[];
   adCards: CardData[];
+  project: string;
 }
 
 function fmt(v: number | null, prefix = ""): string {
@@ -22,7 +23,7 @@ function fmt(v: number | null, prefix = ""): string {
   return prefix + v.toLocaleString();
 }
 
-export default function GoogleAdsClient({ metrics, updatedAt, chartData, adCards }: GoogleAdsClientProps) {
+export default function GoogleAdsClient({ metrics, updatedAt, chartData, adCards, project }: GoogleAdsClientProps) {
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const isEmpty = Object.values(metrics).every((v) => v == null || v === 0);
 
@@ -96,7 +97,7 @@ export default function GoogleAdsClient({ metrics, updatedAt, chartData, adCards
         </div>
       )}
 
-      <CardDetailModal card={selectedCard} onClose={() => setSelectedCard(null)} />
+      <CardDetailModal card={selectedCard} project={project} onClose={() => setSelectedCard(null)} />
 
       {isEmpty && !adCards.length && (
         <div className="empty-state" style={{ marginTop: "24px" }}>

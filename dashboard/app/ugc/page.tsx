@@ -15,7 +15,7 @@ export default async function UGCPage() {
 
   return (
     <PageShell projects={projects} activeProject={activeProject}>
-      <UGCClient briefs={briefs} stats={stats} ugcCards={ugcCards} />
+      <UGCClient briefs={briefs} stats={stats} ugcCards={ugcCards} project={activeProject} />
     </PageShell>
   );
 }

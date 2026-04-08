@@ -15,7 +15,7 @@ export default async function ContentPage() {
 
   return (
     <PageShell projects={projects} activeProject={activeProject}>
-      <ContentClient stats={stats} postCards={postCards} cadence={cadence} />
+      <ContentClient stats={stats} postCards={postCards} cadence={cadence} project={activeProject} />
     </PageShell>
   );
 }

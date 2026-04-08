@@ -29,6 +29,7 @@ export default async function SocialsPage() {
         cadence={cadenceData.cadence}
         streak={cadenceData.streak}
         socialCards={socialCards}
+        project={activeProject}
       />
     </PageShell>
   );

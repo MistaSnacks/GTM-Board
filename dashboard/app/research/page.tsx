@@ -14,7 +14,7 @@ export default async function ResearchPage() {
 
   return (
     <PageShell projects={projects} activeProject={activeProject}>
-      <ResearchClient research={research} researchCards={researchCards} />
+      <ResearchClient research={research} researchCards={researchCards} project={activeProject} />
     </PageShell>
   );
 }

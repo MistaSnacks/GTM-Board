@@ -98,7 +98,7 @@ export default function KanbanBoard({ board, project, onMoveCard }: KanbanBoardP
           );
         })}
       </div>
-      <CardDetailModal card={selectedCard} onClose={() => setSelectedCard(null)} />
+      <CardDetailModal card={selectedCard} project={project} onClose={() => setSelectedCard(null)} />
     </DragDropContext>
   );
 }

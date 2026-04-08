@@ -19,6 +19,7 @@ interface SocialsClientProps {
   cadence: CadenceData;
   streak: number;
   socialCards: CardData[];
+  project: string;
 }
 
 export default function SocialsClient({
@@ -29,6 +30,7 @@ export default function SocialsClient({
   cadence,
   streak,
   socialCards,
+  project,
 }: SocialsClientProps) {
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
 
@@ -162,7 +164,7 @@ export default function SocialsClient({
         </div>
       )}
 
-      <CardDetailModal card={selectedCard} onClose={() => setSelectedCard(null)} />
+      <CardDetailModal card={selectedCard} project={project} onClose={() => setSelectedCard(null)} />
     </div>
   );
 }
