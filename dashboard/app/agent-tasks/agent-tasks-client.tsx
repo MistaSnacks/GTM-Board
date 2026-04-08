@@ -12,8 +12,9 @@ import {
 } from "@hello-pangea/dnd";
 import PageHeader from "@/components/page-header";
 import AgentTaskCard from "@/components/agent-task-card";
+import CardDetailModal from "@/components/card-detail-modal";
 import { moveAgentTaskAction } from "@/app/actions";
-import type { AgentBoardData, AgentTaskColumn, AgentTaskData } from "@/lib/types";
+import type { AgentBoardData, AgentTaskColumn, AgentTaskData, CardData } from "@/lib/types";
 
 const COLUMNS: { id: AgentTaskColumn; label: string }[] = [
   { id: "queued", label: "QUEUED" },
@@ -33,6 +34,26 @@ export default function AgentTasksClient({ board, project }: AgentTasksClientPro
   const [agentFilter, setAgentFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [optimisticBoard, setOptimisticBoard] = useState<AgentBoardData>(board);
+  const [selectedTask, setSelectedTask] = useState<AgentTaskData | null>(null);
+
+  // Convert an AgentTaskData to a minimal CardData shape so it can render
+  // in the shared modal. The agent-task-specific metadata is passed via the
+  // `agentTask` prop.
+  const selectedAsCard: CardData | null = selectedTask
+    ? {
+        id: selectedTask.id,
+        title: selectedTask.title,
+        type: "initiative",
+        channel: "other",
+        column: "backlog",
+        created: selectedTask.created_at,
+        description: undefined,
+        tags: selectedTask.tags,
+        body: selectedTask.body,
+        references: selectedTask.references,
+        progress: selectedTask.progress,
+      }
+    : null;
 
   useEffect(() => {
     setMounted(true);
@@ -187,7 +208,7 @@ export default function AgentTasksClient({ board, project }: AgentTasksClientPro
                               opacity: snapshot.isDragging ? 0.85 : 1,
                             }}
                           >
-                            <AgentTaskCard task={task} />
+                            <AgentTaskCard task={task} onClick={() => setSelectedTask(task)} />
                           </div>
                         )}
                       </Draggable>
@@ -200,6 +221,12 @@ export default function AgentTasksClient({ board, project }: AgentTasksClientPro
           })}
         </div>
       </DragDropContext>
+      <CardDetailModal
+        card={selectedAsCard}
+        agentTask={selectedTask}
+        project={project}
+        onClose={() => setSelectedTask(null)}
+      />
     </div>
   );
 }

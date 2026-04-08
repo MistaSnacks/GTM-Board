@@ -2152,7 +2152,7 @@ cd /Users/admin/gtm-board && git add dashboard/app/kanban/kanban-client.tsx && g
 **Files:**
 - Modify: `dashboard/app/agent-tasks/agent-tasks-client.tsx`
 
-- [ ] **Step 1: Add modal state and click handler**
+- [x] **Step 1: Add modal state and click handler**
 
 In `dashboard/app/agent-tasks/agent-tasks-client.tsx`:
 
@@ -2205,7 +2205,7 @@ const selectedAsCard: CardData | null = selectedTask
 />
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck
@@ -2213,7 +2213,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add dashboard/app/agent-tasks/agent-tasks-client.tsx && git commit -m "feat(agent-tasks): open shared CardDetailModal on task click"
