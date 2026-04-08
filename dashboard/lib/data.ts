@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { getConfig } from "./config";
+import { toggleChecklistLine } from "./checklist";
 import type {
   BoardData,
   CardData,
@@ -922,4 +923,39 @@ export async function reorderSubtasks(
       .eq("id", orderedIds[i])
       .eq("card_id", cardUuid);
   }
+}
+
+// --- Checklist toggle ---
+
+export async function toggleChecklistItem(
+  project: string,
+  cardSlug: string,
+  lineIndex: number
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const projectId = await getProjectId(project);
+  if (!projectId) return { ok: false, error: "Project not found" };
+
+  const { data: row, error: fetchErr } = await supabase
+    .from("gtm_cards")
+    .select("id, body")
+    .eq("project_id", projectId)
+    .eq("slug", cardSlug)
+    .single();
+
+  if (fetchErr || !row) return { ok: false, error: "Card not found" };
+
+  let newBody: string;
+  try {
+    newBody = toggleChecklistLine((row.body as string) || "", lineIndex);
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+
+  const { error: updateErr } = await supabase
+    .from("gtm_cards")
+    .update({ body: newBody, updated_at: new Date().toISOString() })
+    .eq("id", row.id as string);
+
+  if (updateErr) return { ok: false, error: updateErr.message };
+  return { ok: true };
 }
