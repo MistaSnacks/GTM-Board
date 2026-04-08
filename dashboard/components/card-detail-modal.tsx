@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { CardData, Channel } from "@/lib/types";
+import type { CardData, Channel, AgentTaskData, SubtaskData } from "@/lib/types";
+import { toggleChecklistItemAction } from "@/app/actions";
+import SubtaskList from "./subtask-list";
+import ReferenceList from "./reference-list";
 
 const channelColorMap: Record<Channel, string> = {
   reddit: "var(--channel-reddit)",
@@ -17,11 +20,52 @@ const channelColorMap: Record<Channel, string> = {
 
 interface CardDetailModalProps {
   card: CardData | null;
+  agentTask?: AgentTaskData | null;
+  project: string;
+  initialSubtasks?: SubtaskData[];
   onClose: () => void;
 }
 
-function renderMarkdownLine(line: string, index: number) {
-  // Heading
+// Render a single line of markdown. For checklist lines, the box is an
+// interactive button that calls onToggle(lineIndex). Plain markdown links
+// [text](url) within other lines are converted to anchor tags.
+function renderInline(text: string): React.ReactNode {
+  // Match [label](url) — non-greedy
+  const re = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let m: RegExpExecArray | null;
+  let key = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > lastIndex) parts.push(text.slice(lastIndex, m.index));
+    const url = m[2];
+    const safe = /^(https?:|mailto:|\/)/.test(url);
+    parts.push(
+      safe ? (
+        <a
+          key={`lnk-${key++}`}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "var(--mint)", textDecoration: "underline" }}
+        >
+          {m[1]}
+        </a>
+      ) : (
+        <span key={`lnk-${key++}`}>{m[1]}</span>
+      )
+    );
+    lastIndex = re.lastIndex;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts.length > 0 ? parts : text;
+}
+
+function renderMarkdownLine(
+  line: string,
+  index: number,
+  onToggle: (lineIndex: number) => void
+) {
   if (line.startsWith("## ")) {
     return (
       <h3
@@ -35,56 +79,68 @@ function renderMarkdownLine(line: string, index: number) {
           marginBottom: "8px",
         }}
       >
-        {line.slice(3)}
+        {renderInline(line.slice(3))}
       </h3>
     );
   }
-  // Checklist item
-  if (line.startsWith("- [x] ") || line.startsWith("- [X] ")) {
+  const checklistMatch = line.match(/^(\s*-\s)\[( |x|X)\]\s(.*)$/);
+  if (checklistMatch) {
+    const checked = checklistMatch[2] !== " ";
+    const text = checklistMatch[3];
     return (
       <div key={index} style={{ display: "flex", alignItems: "flex-start", gap: "8px", marginBottom: "4px" }}>
-        <span style={{ color: "var(--mint)", fontSize: "14px", lineHeight: "20px", flexShrink: 0 }}>&#10003;</span>
-        <span style={{ fontFamily: "var(--font-inter)", fontSize: "13px", color: "var(--text-muted)", textDecoration: "line-through" }}>
-          {line.slice(6)}
-        </span>
-      </div>
-    );
-  }
-  if (line.startsWith("- [ ] ")) {
-    return (
-      <div key={index} style={{ display: "flex", alignItems: "flex-start", gap: "8px", marginBottom: "4px" }}>
-        <span
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle(index);
+          }}
+          aria-label={checked ? "Mark incomplete" : "Mark complete"}
           style={{
-            width: "14px",
-            height: "14px",
+            width: "16px",
+            height: "16px",
             border: "1.5px solid var(--text-muted)",
             borderRadius: "3px",
+            background: checked ? "var(--mint)" : "transparent",
+            color: "var(--bg-card)",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "11px",
+            lineHeight: 1,
             flexShrink: 0,
-            marginTop: "3px",
+            marginTop: "2px",
+            padding: 0,
           }}
-        />
-        <span style={{ fontFamily: "var(--font-inter)", fontSize: "13px", color: "var(--text-primary)" }}>
-          {line.slice(6)}
+        >
+          {checked ? "✓" : ""}
+        </button>
+        <span
+          style={{
+            fontFamily: "var(--font-inter)",
+            fontSize: "13px",
+            color: checked ? "var(--text-muted)" : "var(--text-primary)",
+            textDecoration: checked ? "line-through" : "none",
+          }}
+        >
+          {renderInline(text)}
         </span>
       </div>
     );
   }
-  // Bullet point
   if (line.startsWith("- ")) {
     return (
       <div key={index} style={{ display: "flex", alignItems: "flex-start", gap: "8px", marginBottom: "4px" }}>
         <span style={{ color: "var(--text-muted)", flexShrink: 0, lineHeight: "20px" }}>&bull;</span>
         <span style={{ fontFamily: "var(--font-inter)", fontSize: "13px", color: "var(--text-primary)", lineHeight: "20px" }}>
-          {line.slice(2)}
+          {renderInline(line.slice(2))}
         </span>
       </div>
     );
   }
-  // Empty line
   if (line.trim() === "") {
     return <div key={index} style={{ height: "8px" }} />;
   }
-  // Regular text
   return (
     <p
       key={index}
@@ -96,7 +152,7 @@ function renderMarkdownLine(line: string, index: number) {
         marginBottom: "4px",
       }}
     >
-      {line}
+      {renderInline(line)}
     </p>
   );
 }
@@ -108,8 +164,20 @@ function formatMetricValue(value: number): string {
   return value.toLocaleString();
 }
 
-export default function CardDetailModal({ card, onClose }: CardDetailModalProps) {
+export default function CardDetailModal({
+  card,
+  agentTask,
+  project,
+  initialSubtasks,
+  onClose,
+}: CardDetailModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const [body, setBody] = useState<string>(card?.body ?? "");
+  const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    setBody(card?.body ?? "");
+  }, [card]);
 
   useEffect(() => {
     if (!card) return;
@@ -119,6 +187,26 @@ export default function CardDetailModal({ card, onClose }: CardDetailModalProps)
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
   }, [card, onClose]);
+
+  const handleToggleChecklist = (lineIndex: number) => {
+    if (!card) return;
+    // Optimistic flip
+    const lines = body.split("\n");
+    const m = lines[lineIndex]?.match(/^(\s*-\s)\[( |x|X)\]\s(.*)$/);
+    if (!m) return;
+    const wasChecked = m[2] !== " ";
+    lines[lineIndex] = lines[lineIndex].replace(/\[( |x|X)\]/, wasChecked ? "[ ]" : "[x]");
+    const next = lines.join("\n");
+    setBody(next);
+    startTransition(async () => {
+      const result = await toggleChecklistItemAction(project, card.id, lineIndex);
+      if (!result.ok) {
+        // Revert on error
+        setBody(body);
+        console.error("Failed to toggle checklist:", result.error);
+      }
+    });
+  };
 
   return (
     <AnimatePresence>
@@ -151,8 +239,8 @@ export default function CardDetailModal({ card, onClose }: CardDetailModalProps)
             className="card"
             style={{
               width: "100%",
-              maxWidth: "520px",
-              maxHeight: "80vh",
+              maxWidth: "560px",
+              maxHeight: "85vh",
               overflow: "auto",
               padding: "24px",
               borderLeft: `4px solid ${channelColorMap[card.channel]}`,
@@ -183,6 +271,7 @@ export default function CardDetailModal({ card, onClose }: CardDetailModalProps)
                   padding: "4px",
                   flexShrink: 0,
                 }}
+                aria-label="Close"
               >
                 &#10005;
               </button>
@@ -250,6 +339,15 @@ export default function CardDetailModal({ card, onClose }: CardDetailModalProps)
                 </span>
               ))}
             </div>
+
+            {/* Agent task metadata (only when present) */}
+            {agentTask && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: "12px", fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--text-muted)" }}>
+                <span>Priority: <strong style={{ color: "var(--text-primary)" }}>{agentTask.priority}</strong></span>
+                {agentTask.assigned_agent && <span>Agent: <strong style={{ color: "var(--text-primary)" }}>{agentTask.assigned_agent}</strong></span>}
+                {agentTask.error && <span style={{ color: "#ef4444" }}>Error: {agentTask.error} (retries {agentTask.retries})</span>}
+              </div>
+            )}
 
             {/* Dates */}
             <div style={{ display: "flex", gap: "16px", marginTop: "12px" }}>
@@ -324,7 +422,7 @@ export default function CardDetailModal({ card, onClose }: CardDetailModalProps)
             )}
 
             {/* Body content */}
-            {card.body && card.body.trim() !== "" && (
+            {body && body.trim() !== "" && (
               <div
                 style={{
                   marginTop: "16px",
@@ -332,11 +430,23 @@ export default function CardDetailModal({ card, onClose }: CardDetailModalProps)
                   borderTop: "1px solid var(--border)",
                 }}
               >
-                {card.body
-                  .split("\n")
-                  .map((line, i) => renderMarkdownLine(line, i))}
+                {body.split("\n").map((line, i) => renderMarkdownLine(line, i, handleToggleChecklist))}
               </div>
             )}
+
+            {/* Subtasks */}
+            <SubtaskList
+              project={project}
+              cardSlug={card.id}
+              initialSubtasks={initialSubtasks ?? []}
+            />
+
+            {/* References */}
+            <ReferenceList
+              project={project}
+              cardSlug={card.id}
+              initialReferences={card.references ?? []}
+            />
           </motion.div>
         </motion.div>
       )}
