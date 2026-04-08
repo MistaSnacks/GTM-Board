@@ -23,6 +23,8 @@ import type {
   AgentTaskColumn,
   AgentTaskData,
   AgentBoardData,
+  SubtaskData,
+  SubtaskStatus,
 } from "./types";
 
 const COLUMNS: Column[] = ["backlog", "preparing", "live", "measuring", "done"];
@@ -806,4 +808,118 @@ export async function moveAgentTask(
     .update({ column_name: dbColumn, updated_at: new Date().toISOString() })
     .eq("project_id", projectId)
     .eq("slug", taskSlug);
+}
+
+// --- Subtasks ---
+
+function rowToSubtask(row: Record<string, unknown>): SubtaskData {
+  return {
+    id: row.id as string,
+    card_id: row.card_id as string,
+    title: (row.title as string) ?? "",
+    status: (row.status as SubtaskStatus) ?? "pending",
+    assignee: (row.assignee as string | null) ?? null,
+    sort_order: (row.sort_order as number) ?? 0,
+    created_at: (row.created_at as string) ?? "",
+    updated_at: (row.updated_at as string) ?? "",
+  };
+}
+
+// Resolve a project slug + card slug to the card's UUID. Used by mutations
+// where the client only knows the human-readable slug.
+async function getCardUuid(project: string, cardSlug: string): Promise<string | null> {
+  const projectId = await getProjectId(project);
+  if (!projectId) return null;
+  const { data } = await supabase
+    .from("gtm_cards")
+    .select("id")
+    .eq("project_id", projectId)
+    .eq("slug", cardSlug)
+    .single();
+  return data ? (data.id as string) : null;
+}
+
+export async function getSubtasks(cardUuid: string): Promise<SubtaskData[]> {
+  const { data, error } = await supabase
+    .from("gtm_subtasks")
+    .select("*")
+    .eq("card_id", cardUuid)
+    .order("sort_order", { ascending: true });
+  if (error || !data) return [];
+  return data.map(rowToSubtask);
+}
+
+export async function getSubtasksByCardSlug(
+  project: string,
+  cardSlug: string
+): Promise<SubtaskData[]> {
+  const cardUuid = await getCardUuid(project, cardSlug);
+  if (!cardUuid) return [];
+  return getSubtasks(cardUuid);
+}
+
+export async function addSubtask(
+  project: string,
+  cardSlug: string,
+  title: string,
+  assignee?: string | null
+): Promise<SubtaskData | null> {
+  const cardUuid = await getCardUuid(project, cardSlug);
+  if (!cardUuid) return null;
+
+  // Append at the end: sort_order = current max + 1.
+  const { data: existing } = await supabase
+    .from("gtm_subtasks")
+    .select("sort_order")
+    .eq("card_id", cardUuid)
+    .order("sort_order", { ascending: false })
+    .limit(1);
+  const nextOrder = existing && existing.length > 0 ? (existing[0].sort_order as number) + 1 : 0;
+
+  const { data, error } = await supabase
+    .from("gtm_subtasks")
+    .insert({
+      card_id: cardUuid,
+      title,
+      assignee: assignee ?? null,
+      sort_order: nextOrder,
+    })
+    .select()
+    .single();
+
+  if (error || !data) return null;
+  return rowToSubtask(data);
+}
+
+export async function updateSubtask(
+  subtaskId: string,
+  patch: Partial<Pick<SubtaskData, "title" | "status" | "assignee">>
+): Promise<void> {
+  const update: Record<string, unknown> = {};
+  if (patch.title !== undefined) update.title = patch.title;
+  if (patch.status !== undefined) update.status = patch.status;
+  if (patch.assignee !== undefined) update.assignee = patch.assignee;
+  if (Object.keys(update).length === 0) return;
+  await supabase.from("gtm_subtasks").update(update).eq("id", subtaskId);
+}
+
+export async function deleteSubtask(subtaskId: string): Promise<void> {
+  await supabase.from("gtm_subtasks").delete().eq("id", subtaskId);
+}
+
+export async function reorderSubtasks(
+  project: string,
+  cardSlug: string,
+  orderedIds: string[]
+): Promise<void> {
+  const cardUuid = await getCardUuid(project, cardSlug);
+  if (!cardUuid) return;
+  // Update each subtask's sort_order in sequence. Small N (<50 typical), so OK.
+  for (let i = 0; i < orderedIds.length; i++) {
+    await supabase
+      .from("gtm_subtasks")
+      .update({ sort_order: i })
+      .eq("id", orderedIds[i])
+      .eq("card_id", cardUuid);
+  }
 }
