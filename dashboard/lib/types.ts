@@ -24,6 +24,8 @@ export interface CardData {
   approval_status?: "draft" | "submitted" | "approved" | "rejected";
   due_date?: string;
   asset_url?: string | null;
+  progress?: CardProgress;
+  references?: CardReference[];
 }
 
 export interface BoardData {
@@ -202,8 +204,36 @@ export interface AgentTaskData {
   tags: string[];
   created_at: string;
   updated_at: string;
+  progress?: CardProgress;
+  references?: CardReference[];
 }
 
 export interface AgentBoardData {
   columns: Record<AgentTaskColumn, AgentTaskData[]>;
+}
+
+// --- Subtasks, Progress, References ---
+
+export type SubtaskStatus = "pending" | "in_progress" | "done";
+
+export interface SubtaskData {
+  id: string;
+  card_id: string;
+  title: string;
+  status: SubtaskStatus;
+  assignee: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CardProgress {
+  checklist: { done: number; total: number };
+  subtasks: { done: number; total: number };
+}
+
+export interface CardReference {
+  id: string;     // client-generated uuid
+  title: string;
+  url: string;    // http(s), mailto, or repo-relative path beginning with "/"
 }
