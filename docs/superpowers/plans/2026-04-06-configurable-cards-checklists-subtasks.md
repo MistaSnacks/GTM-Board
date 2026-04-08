@@ -2483,7 +2483,7 @@ Open the card. The link is clickable, blue/mint, and opens in a new tab.
 
 ## Task 20: Final verification & summary commit
 
-- [ ] **Step 1: Run typecheck + build + tests one last time**
+- [x] **Step 1: Run typecheck + build + tests one last time**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck && npm run build 2>&1 | tail -5 && node --test --experimental-strip-types test/*.test.mjs 2>&1 | tail -5
@@ -2491,7 +2491,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck && npm run build 2>&1 |
 
 Expected: typecheck PASS, build succeeds, all tests pass.
 
-- [ ] **Step 2: Confirm git is clean**
+- [x] **Step 2: Confirm git is clean** (feature work all committed; pre-existing unrelated stragglers — .gitignore, tsbuildinfo, ralph.sh, .env.local, dashboard/.gitignore — predate this plan and are out of scope)
 
 ```bash
 cd /Users/admin/gtm-board && git status
@@ -2499,7 +2499,7 @@ cd /Users/admin/gtm-board && git status
 
 Expected: `nothing to commit, working tree clean` (every task already committed). If there are stragglers, address them before finishing.
 
-- [ ] **Step 3: Show the commit log for the feature**
+- [x] **Step 3: Show the commit log for the feature**
 
 ```bash
 cd /Users/admin/gtm-board && git log --oneline -25
