@@ -149,6 +149,22 @@ export default function KanbanCard({ card, index, onCardClick }: KanbanCardProps
                 {card.target_date}
               </span>
             )}
+            {card.progress && (card.progress.checklist.total + card.progress.subtasks.total) > 0 && (
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "10px",
+                  color: "var(--mint)",
+                  background: "color-mix(in srgb, var(--mint) 12%, transparent)",
+                  padding: "1px 6px",
+                  borderRadius: "4px",
+                }}
+                title="Checklist + subtasks"
+              >
+                ✓ {card.progress.checklist.done + card.progress.subtasks.done}/
+                {card.progress.checklist.total + card.progress.subtasks.total}
+              </span>
+            )}
             {hasDetails && (
               <span
                 style={{
