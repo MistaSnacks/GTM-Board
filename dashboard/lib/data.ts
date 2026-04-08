@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { getConfig } from "./config";
 import { toggleChecklistLine } from "./checklist";
+import { parseChecklist } from "./checklist";
 import type {
   BoardData,
   CardData,
@@ -46,6 +47,12 @@ async function getProjectId(project: string): Promise<string | null> {
 
 // --- Helper: map a gtm_cards row to CardData ---
 
+function computeChecklistProgress(body: string): { done: number; total: number } {
+  const items = parseChecklist(body || "");
+  const done = items.filter((i) => i.checked).length;
+  return { done, total: items.length };
+}
+
 function rowToCard(row: Record<string, unknown>): CardData {
   const meta = (row.metadata || {}) as Record<string, unknown>;
   return {
@@ -68,10 +75,31 @@ function rowToCard(row: Record<string, unknown>): CardData {
     approval_status: meta.approval_status as CardData["approval_status"],
     due_date: meta.due_date ? String(meta.due_date) : undefined,
     asset_url: meta.asset_url as string | null | undefined,
+    references: readReferences(meta),
   };
 }
 
 // --- Board ---
+
+async function loadSubtaskTotals(
+  cardIds: string[]
+): Promise<Map<string, { done: number; total: number }>> {
+  const totals = new Map<string, { done: number; total: number }>();
+  if (cardIds.length === 0) return totals;
+  const { data } = await supabase
+    .from("gtm_subtasks")
+    .select("card_id, status")
+    .in("card_id", cardIds);
+  if (!data) return totals;
+  for (const row of data) {
+    const id = row.card_id as string;
+    const cur = totals.get(id) ?? { done: 0, total: 0 };
+    cur.total += 1;
+    if (row.status === "done") cur.done += 1;
+    totals.set(id, cur);
+  }
+  return totals;
+}
 
 export async function getBoard(project: string): Promise<BoardData> {
   const projectId = await getProjectId(project);
@@ -94,10 +122,20 @@ export async function getBoard(project: string): Promise<BoardData> {
 
   if (error || !data) return { columns };
 
+  // Batch-load subtask counts for every card on this board
+  const cardIds = data.map((r) => r.id as string);
+  const subtaskTotals = await loadSubtaskTotals(cardIds);
+
   for (const row of data) {
+    const card = rowToCard(row);
+    const cardUuid = row.id as string;
+    card.progress = {
+      checklist: computeChecklistProgress(card.body),
+      subtasks: subtaskTotals.get(cardUuid) ?? { done: 0, total: 0 },
+    };
     const col = (row.column_name as Column) || "backlog";
     if (COLUMNS.includes(col)) {
-      columns[col].push(rowToCard(row));
+      columns[col].push(card);
     }
   }
 
@@ -758,6 +796,7 @@ function rowToAgentTask(row: Record<string, unknown>): AgentTaskData {
     completed_at: (details.completed_at as string) ?? null,
     retries: (details.retries as number) ?? 0,
     tags: (meta.tags as string[]) ?? [],
+    references: readReferences(meta),
     created_at: (row.created_at as string) || "",
     updated_at: (row.updated_at as string) || "",
   };
@@ -784,8 +823,15 @@ export async function getAgentBoard(project: string): Promise<AgentBoardData> {
 
   if (error || !data) return { columns };
 
+  const cardIds = data.map((r) => r.id as string);
+  const subtaskTotals = await loadSubtaskTotals(cardIds);
+
   for (const row of data) {
     const task = rowToAgentTask(row);
+    task.progress = {
+      checklist: computeChecklistProgress(task.body),
+      subtasks: subtaskTotals.get(row.id as string) ?? { done: 0, total: 0 },
+    };
     if (AGENT_COLUMNS.includes(task.column)) {
       columns[task.column].push(task);
     }
