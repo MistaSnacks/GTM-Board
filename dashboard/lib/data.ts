@@ -26,6 +26,7 @@ import type {
   AgentBoardData,
   SubtaskData,
   SubtaskStatus,
+  CardReference,
 } from "./types";
 
 const COLUMNS: Column[] = ["backlog", "preparing", "live", "measuring", "done"];
@@ -958,4 +959,83 @@ export async function toggleChecklistItem(
 
   if (updateErr) return { ok: false, error: updateErr.message };
   return { ok: true };
+}
+
+// --- References (stored under metadata.references) ---
+
+async function loadCardMetadata(
+  project: string,
+  cardSlug: string
+): Promise<{ id: string; metadata: Record<string, unknown> } | null> {
+  const projectId = await getProjectId(project);
+  if (!projectId) return null;
+  const { data } = await supabase
+    .from("gtm_cards")
+    .select("id, metadata")
+    .eq("project_id", projectId)
+    .eq("slug", cardSlug)
+    .single();
+  if (!data) return null;
+  return {
+    id: data.id as string,
+    metadata: (data.metadata || {}) as Record<string, unknown>,
+  };
+}
+
+async function saveCardReferences(cardId: string, refs: CardReference[], baseMeta: Record<string, unknown>): Promise<void> {
+  const newMeta = { ...baseMeta, references: refs };
+  await supabase
+    .from("gtm_cards")
+    .update({ metadata: newMeta, updated_at: new Date().toISOString() })
+    .eq("id", cardId);
+}
+
+function readReferences(meta: Record<string, unknown>): CardReference[] {
+  const raw = meta.references;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (r): r is CardReference =>
+      typeof r === "object" &&
+      r !== null &&
+      typeof (r as CardReference).id === "string" &&
+      typeof (r as CardReference).title === "string" &&
+      typeof (r as CardReference).url === "string"
+  );
+}
+
+export async function addReference(
+  project: string,
+  cardSlug: string,
+  ref: CardReference
+): Promise<void> {
+  const card = await loadCardMetadata(project, cardSlug);
+  if (!card) return;
+  const refs = readReferences(card.metadata);
+  refs.push(ref);
+  await saveCardReferences(card.id, refs, card.metadata);
+}
+
+export async function updateReference(
+  project: string,
+  cardSlug: string,
+  refId: string,
+  patch: Partial<Pick<CardReference, "title" | "url">>
+): Promise<void> {
+  const card = await loadCardMetadata(project, cardSlug);
+  if (!card) return;
+  const refs = readReferences(card.metadata).map((r) =>
+    r.id === refId ? { ...r, ...patch } : r
+  );
+  await saveCardReferences(card.id, refs, card.metadata);
+}
+
+export async function deleteReference(
+  project: string,
+  cardSlug: string,
+  refId: string
+): Promise<void> {
+  const card = await loadCardMetadata(project, cardSlug);
+  if (!card) return;
+  const refs = readReferences(card.metadata).filter((r) => r.id !== refId);
+  await saveCardReferences(card.id, refs, card.metadata);
 }
