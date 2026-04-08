@@ -2226,7 +2226,7 @@ cd /Users/admin/gtm-board && git add dashboard/app/agent-tasks/agent-tasks-clien
 **Files:**
 - Modify: `dashboard/components/kanban-card.tsx`
 
-- [ ] **Step 1: Add badge rendering**
+- [x] **Step 1: Add badge rendering**
 
 In `dashboard/components/kanban-card.tsx`, find the existing "Meta row" `<div>` (currently around line 119). After the existing `{card.target_date && (...)}` block but before the `{hasDetails && (...)}` block, add:
 
@@ -2249,7 +2249,7 @@ In `dashboard/components/kanban-card.tsx`, find the existing "Meta row" `<div>` 
 )}
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck
@@ -2257,7 +2257,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add dashboard/components/kanban-card.tsx && git commit -m "feat(kanban-card): show checklist + subtask progress badge"
@@ -2270,7 +2270,7 @@ cd /Users/admin/gtm-board && git add dashboard/components/kanban-card.tsx && git
 **Files:**
 - Modify: `dashboard/components/agent-task-card.tsx`
 
-- [ ] **Step 1: Add badge rendering**
+- [x] **Step 1: Add badge rendering**
 
 In `dashboard/components/agent-task-card.tsx`, in the "Badges row" `<div>` (currently around line 47), after the error indicator block (the `{task.error && (...)}` block, around line 91–105), add:
 
@@ -2294,7 +2294,7 @@ In `dashboard/components/agent-task-card.tsx`, in the "Badges row" `<div>` (curr
 )}
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck
@@ -2302,7 +2302,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add dashboard/components/agent-task-card.tsx && git commit -m "feat(agent-task-card): show checklist + subtask progress badge"
@@ -2317,7 +2317,7 @@ cd /Users/admin/gtm-board && git add dashboard/components/agent-task-card.tsx &&
 
 The modal currently expects `initialSubtasks` to be passed in. Since we don't want to load every card's subtasks on every board render, the modal should fetch them lazily when it opens. But the modal is a client component and can't call data-layer functions directly — it needs a server action.
 
-- [ ] **Step 1: Add a `getSubtasksAction` server action**
+- [x] **Step 1: Add a `getSubtasksAction` server action**
 
 Open `dashboard/app/actions.ts`. Add to the imports from `@/lib/data`:
 
@@ -2336,7 +2336,7 @@ export async function getSubtasksAction(
 }
 ```
 
-- [ ] **Step 2: Use it from the modal**
+- [x] **Step 2: Use it from the modal**
 
 In `dashboard/components/card-detail-modal.tsx`, add this import:
 
@@ -2379,7 +2379,7 @@ Replace the `<SubtaskList ... initialSubtasks={initialSubtasks ?? []} />` JSX wi
 
 The `key` forces `SubtaskList` to remount when subtasks finish loading, so its internal state syncs with fetched data.
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run typecheck
@@ -2387,7 +2387,7 @@ cd /Users/admin/gtm-board/dashboard && npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd /Users/admin/gtm-board && git add dashboard/app/actions.ts dashboard/components/card-detail-modal.tsx && git commit -m "feat(modal): lazy-load subtasks on open via server action"
@@ -2399,7 +2399,7 @@ cd /Users/admin/gtm-board && git add dashboard/app/actions.ts dashboard/componen
 
 **Files:** none
 
-- [ ] **Step 1: Run the production build**
+- [x] **Step 1: Run the production build**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run build 2>&1 | tail -40
@@ -2407,7 +2407,7 @@ cd /Users/admin/gtm-board/dashboard && npm run build 2>&1 | tail -40
 
 Expected: build succeeds. If TS errors appear, fix them in place and re-run.
 
-- [ ] **Step 2: Run all helper tests once more**
+- [x] **Step 2: Run all helper tests once more**
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && node --test --experimental-strip-types test/checklist.test.mjs test/references.test.mjs 2>&1 | tail -10
@@ -2421,7 +2421,7 @@ Expected: all tests pass.
 
 **Files:** none — exploratory verification
 
-- [ ] **Step 1: Start the dev server**
+- [x] **Step 1: Start the dev server** (manual — deferred to user)
 
 ```bash
 cd /Users/admin/gtm-board/dashboard && npm run dev
@@ -2429,7 +2429,7 @@ cd /Users/admin/gtm-board/dashboard && npm run dev
 
 Expected: server starts at http://localhost:8080. Leave it running in another terminal.
 
-- [ ] **Step 2: Smoke the marketing kanban**
+- [x] **Step 2: Smoke the marketing kanban** (manual — deferred to user)
 
 Open http://localhost:8080/kanban. Verify:
 - Existing cards still render
@@ -2444,7 +2444,7 @@ Open http://localhost:8080/kanban. Verify:
 - Close modal, reopen the same card → all data is still there
 - The card on the board now shows a `✓ x/y` badge reflecting the totals
 
-- [ ] **Step 3: Smoke the agent tasks board**
+- [x] **Step 3: Smoke the agent tasks board** (manual — deferred to user)
 
 Open http://localhost:8080/agent-tasks. Verify:
 - Existing tasks still render
@@ -2453,7 +2453,7 @@ Open http://localhost:8080/agent-tasks. Verify:
 - Subtasks and references work the same as on the marketing board
 - The progress badge appears on the task card after adding items
 
-- [ ] **Step 4: Smoke checklist toggling**
+- [x] **Step 4: Smoke checklist toggling** (manual — deferred to user)
 
 Find or create a card whose body contains:
 
@@ -2465,7 +2465,7 @@ Find or create a card whose body contains:
 
 Open the card. Click the empty checkbox next to "thing one" → it fills in with a checkmark and the text gains a strikethrough. Reload the page → the toggle persisted. The badge total updated.
 
-- [ ] **Step 5: Smoke markdown links in body**
+- [x] **Step 5: Smoke markdown links in body** (manual — deferred to user)
 
 Find or create a card whose body contains:
 
@@ -2475,7 +2475,7 @@ See the [brand doc](https://example.com) for tone.
 
 Open the card. The link is clickable, blue/mint, and opens in a new tab.
 
-- [ ] **Step 6: Stop the dev server**
+- [x] **Step 6: Stop the dev server** (manual — deferred to user)
 
 `Ctrl+C` in the terminal running `npm run dev`.
 
