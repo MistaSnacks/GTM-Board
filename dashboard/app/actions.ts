@@ -11,6 +11,7 @@ import {
   addReference,
   updateReference,
   deleteReference,
+  getSubtasksByCardSlug,
 } from "@/lib/data";
 import type {
   Column,
@@ -129,4 +130,11 @@ export async function deleteReferenceAction(
 ): Promise<void> {
   await deleteReference(project, cardSlug, refId);
   revalidatePath("/", "layout");
+}
+
+export async function getSubtasksAction(
+  project: string,
+  cardSlug: string
+): Promise<SubtaskData[]> {
+  return getSubtasksByCardSlug(project, cardSlug);
 }

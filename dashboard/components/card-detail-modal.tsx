@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { CardData, Channel, AgentTaskData, SubtaskData } from "@/lib/types";
-import { toggleChecklistItemAction } from "@/app/actions";
+import { toggleChecklistItemAction, getSubtasksAction } from "@/app/actions";
 import SubtaskList from "./subtask-list";
 import ReferenceList from "./reference-list";
 
@@ -173,11 +173,24 @@ export default function CardDetailModal({
 }: CardDetailModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const [body, setBody] = useState<string>(card?.body ?? "");
+  const [subtasks, setSubtasks] = useState<SubtaskData[]>(initialSubtasks ?? []);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
     setBody(card?.body ?? "");
   }, [card]);
+
+  useEffect(() => {
+    if (!card) return;
+    // Lazy-load subtasks when the modal opens for a new card.
+    let cancelled = false;
+    getSubtasksAction(project, card.id).then((data) => {
+      if (!cancelled) setSubtasks(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [card, project]);
 
   useEffect(() => {
     if (!card) return;
@@ -438,7 +451,8 @@ export default function CardDetailModal({
             <SubtaskList
               project={project}
               cardSlug={card.id}
-              initialSubtasks={initialSubtasks ?? []}
+              initialSubtasks={subtasks}
+              key={`subtasks-${card.id}-${subtasks.length}`}
             />
 
             {/* References */}
