@@ -127,7 +127,6 @@ export interface CivilDate {
 
 const pad = (n: number, width = 2) => String(n).padStart(width, "0");
 
-/** The calendar date at `now` in `timeZone`. */
 export function civilDate(now: Date, timeZone: string = RECURRING_TIMEZONE): CivilDate {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
   const part = (type: string) => Number(parts.find((p) => p.type === type)?.value);
@@ -146,7 +145,6 @@ function fromUtcDay(ms: number): CivilDate {
   return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
 }
 
-/** Monday of the ISO week that holds `date`. */
 export function isoWeekMonday(date: CivilDate): CivilDate {
   const weekday = new Date(utcDay(date)).getUTCDay() || 7;
   return fromUtcDay(utcDay(date) - (weekday - 1) * DAY_MS);

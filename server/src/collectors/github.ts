@@ -33,7 +33,6 @@ export const PR_FIELDS = "number,title,url,author,createdAt,isDraft,mergeable,re
 const FAILING_CONCLUSIONS = new Set(["FAILURE", "TIMED_OUT", "STARTUP_FAILURE"]);
 const FAILING_STATES = new Set(["FAILURE", "ERROR"]);
 
-/** Parse the JSON of `gh pr list --json <PR_FIELDS>`. */
 export function parsePullRequests(text: string): PullRequest[] {
   const data: unknown = JSON.parse(text);
   if (!Array.isArray(data)) throw new Error("gh pr list did not return a JSON array");

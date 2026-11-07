@@ -47,7 +47,6 @@ export const realExec: Exec = async (file, args, options = {}) => {
   });
 };
 
-/** Returns stdout, or throws with the start of stderr. */
 export function stdoutOf(result: ExecResult, what: string): string {
   if (result.code !== 0) throw new Error(`${what} exited with ${result.code}: ${result.stderr.trim().slice(0, 300)}`);
   return result.stdout;

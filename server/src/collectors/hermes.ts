@@ -19,7 +19,6 @@ export interface HermesJob {
 
 const text = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
 
-/** Parse the contents of `~/.hermes/cron/jobs.json`. */
 export function parseJobs(raw: string): HermesJob[] {
   const data = JSON.parse(raw) as { jobs?: unknown };
   if (!data || !Array.isArray(data.jobs)) throw new Error("jobs.json has no jobs array");

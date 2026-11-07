@@ -51,7 +51,6 @@ export function parseResult(raw: string, location: { site: string; task: string;
   };
 }
 
-/** Read every run record under `runsDir`. */
 export function readRuns(runsDir: string): HarnessRun[] {
   const dirs = (parent: string) =>
     fs.readdirSync(parent, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);

@@ -15,7 +15,6 @@ export interface PorcelainSummary {
   changed: number;
 }
 
-/** Summarize `git status --porcelain` (v1). One line is one entry. */
 export function parsePorcelain(text: string): PorcelainSummary {
   const lines = text.split("\n").filter((l) => l.trim() !== "");
   const untracked = lines.filter((l) => l.startsWith("??")).length;
@@ -31,7 +30,6 @@ export interface BranchRef {
 
 const BRANCH_FORMAT = "%(refname:lstrip=2)%09%(upstream:track)%09%(committerdate:unix)";
 
-/** Parse `git for-each-ref refs/heads --format=<BRANCH_FORMAT>`. */
 export function parseBranches(text: string): BranchRef[] {
   return text
     .split("\n")
@@ -58,7 +56,6 @@ function repoLink(repo: RepoConfig): string | undefined {
   return repo.github ? `https://github.com/${repo.github}` : undefined;
 }
 
-/** Turn the facts of one repo into items. This is the only place that sets a git priority. */
 export function itemsForRepo({ repo, status, unpushed }: RepoFacts, now: Date): ItemInput[] {
   const seen = now.toISOString();
   const common = { project: repo.project, source, kind: "repo_attention" as const, link: repoLink(repo), reopen: true };

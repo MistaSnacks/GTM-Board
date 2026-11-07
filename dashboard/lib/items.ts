@@ -14,7 +14,6 @@ const itemStore = createItemStore({
   },
 });
 
-/** Open Today items for every project. A snoozed item whose snooze time passed counts as open. */
 export function listOpenItems(): Promise<Item[]> {
   return itemStore.listItems();
 }

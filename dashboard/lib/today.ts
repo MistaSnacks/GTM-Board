@@ -1,7 +1,5 @@
 import type { Item, ItemStatus, Priority } from "../../server/src/items/types.ts";
 
-// Pure helpers for the /today page: which section an item belongs to, and what each button does.
-
 export type SectionId = "now" | "agents" | "seo" | "code" | "followups" | "later";
 
 export interface SectionDef {
@@ -13,7 +11,6 @@ export interface SectionDef {
   matches: (item: Item, now: Date) => boolean;
 }
 
-/** An agent item that is still open past its due time. */
 export function isOverdueAgentItem(item: Item, now: Date): boolean {
   return item.owner === "agent" && item.due_at !== null && Date.parse(item.due_at) < now.getTime();
 }
@@ -96,7 +93,6 @@ export function isItemAction(value: string): value is ItemAction {
 
 export const PRIORITY_LABEL: Record<Priority, string> = { 0: "NOW", 1: "TODAY", 2: "WEEK", 3: "LATER" };
 
-/** Compact age such as 5m, 3h or 12d. */
 export function ageLabel(fromIso: string, now: Date): string {
   const minutes = Math.max(0, Math.floor((now.getTime() - Date.parse(fromIso)) / 60_000));
   if (minutes < 60) return `${minutes}m`;

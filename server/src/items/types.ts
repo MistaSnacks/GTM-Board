@@ -106,7 +106,6 @@ const itemInputObject = z.object({
   reopen: z.boolean().optional().describe("Reopen a row that was closed as resolved or done. A dismissed row stays closed"),
 });
 
-/** Field shapes for the MCP tool arguments. */
 export const itemInputShape = itemInputObject.shape;
 export const itemInputSchema: z.ZodType<ItemInput> = itemInputObject;
 
@@ -116,7 +115,6 @@ export function formatZodError(error: z.ZodError, prefix = ""): string {
     .join("; ");
 }
 
-/** Parse one ItemInput at a boundary (MCP, collector output). Throws a readable error. */
 export function parseItemInput(raw: unknown, prefix = ""): ItemInput {
   const result = itemInputSchema.safeParse(raw);
   if (!result.success) throw new Error(`Invalid item: ${formatZodError(result.error, prefix)}`);

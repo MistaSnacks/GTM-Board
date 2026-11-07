@@ -8,8 +8,6 @@ import {
   type Priority,
 } from "./types.ts";
 
-// ── Storage seam ────────────────────────────────────────────────────────────
-
 export interface ItemFilter {
   ids?: string[];
   dedupe_keys?: string[];
@@ -61,8 +59,6 @@ export interface ItemsDb {
   update(id: string, patch: ItemPatch): Promise<Item>;
 }
 
-// ── Status model ────────────────────────────────────────────────────────────
-
 /** The allowed status moves. Every status change in this file goes through `planMove`. */
 export const TRANSITIONS: Record<ItemStatus, readonly ItemStatus[]> = {
   open: ["snoozed", "done", "dismissed"],
@@ -76,7 +72,6 @@ interface EntryContext {
   snoozed_until: string | null;
 }
 
-/** The fields that change when an item enters a status. */
 const ENTER: Record<ItemStatus, (ctx: EntryContext) => ItemPatch> = {
   open: () => ({ status: "open", snoozed_until: null, closed_reason: null, closed_at: null }),
   snoozed: ({ snoozed_until }) => ({ status: "snoozed", snoozed_until, closed_reason: null, closed_at: null }),
@@ -109,15 +104,12 @@ function planMove(item: Item, to: ItemStatus, now: Date, snoozedUntil?: string |
 
 const CLOSED: ReadonlySet<ItemStatus> = new Set(["done", "dismissed"]);
 
-/** Statuses to read from storage for each requested list status. */
 const STORED_STATUSES: Record<ItemStatus, ItemStatus[]> = {
   open: ["open", "snoozed"],
   snoozed: ["snoozed"],
   done: ["done"],
   dismissed: ["dismissed"],
 };
-
-// ── Ordering ────────────────────────────────────────────────────────────────
 
 function compareDueAt(a: string | null, b: string | null): number {
   if (a === b) return 0;
@@ -134,8 +126,6 @@ export function compareItems(a: Item, b: Item): number {
     Date.parse(a.created_at) - Date.parse(b.created_at)
   );
 }
-
-// ── Operations ──────────────────────────────────────────────────────────────
 
 export interface AddResult {
   id: string;
