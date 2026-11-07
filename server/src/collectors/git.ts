@@ -80,7 +80,7 @@ export function itemsForRepo({ repo, status, unpushed }: RepoFacts, now: Date): 
       why: `${plural(commits, "commit")} on ${branch} ${commits === 1 ? "is" : "are"} not pushed. The newest commit is ${ageText(tipUnix * 1000, now.getTime())} old.`,
       evidence: [{ label: "Commits not on any remote", value: commits, fetched_at: seen }],
       dedupe_key: `git:${repo.slug}:unpushed:${branch}`,
-      priority: 1,
+      priority: 2,
     });
   }
   return items;
@@ -95,7 +95,8 @@ async function readRepo(repo: RepoConfig, config: CollectorConfig, exec: Exec, n
   const branches = parseBranches(await run(["for-each-ref", "refs/heads", `--format=${BRANCH_FORMAT}`], "git for-each-ref"));
 
   const unpushed: RepoFacts["unpushed"] = [];
-  for (const branch of branches) {
+  const hasRemote = (await run(["for-each-ref", "--count=1", "refs/remotes"], "git for-each-ref refs/remotes")).trim() !== "";
+  for (const branch of hasRemote ? branches : []) {
     if (!isCandidateForUnpushed(branch, now.getTime(), config.unpushedMaxAgeDays)) continue;
     // Counts commits that no remote branch holds. A branch with an open PR has its head on the
     // remote, so this also covers "no upstream and no open PR" without a network call.

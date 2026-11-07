@@ -47,10 +47,10 @@ test("a dirty tree is p2, and p1 above 50 files", () => {
   assert.equal(at(1).title, "Commit or stash 1 uncommitted file in tailor");
 });
 
-test("an unpushed branch is p1 and says how many commits are not pushed", () => {
+test("an unpushed branch is p2 (this week) and says how many commits are not pushed", () => {
   const tip = Math.floor(NOW.getTime() / 1000) - 3 * 86400;
   const [item] = itemsForRepo({ repo, status: status(0), unpushed: [{ branch: "plan-2026-11-06", commits: 3, tipUnix: tip }] }, NOW);
-  assert.equal(item.priority, 1);
+  assert.equal(item.priority, 2);
   assert.equal(item.dedupe_key, "git:tailor:unpushed:plan-2026-11-06");
   assert.match(item.why ?? "", /^3 commits on plan-2026-11-06 are not pushed\./);
   assert.match(item.why ?? "", /3 days old/);
@@ -109,6 +109,13 @@ function fixtureRepo() {
 
 test("real git: a clean repo that is fully pushed gives no item", async () => {
   const fx = fixtureRepo();
+  assert.deepEqual(await fx.keys(), []);
+});
+
+test("real git: a repo with no remote never asks for a push", async () => {
+  const fx = fixtureRepo();
+  git(fx.work, "remote", "remove", "origin");
+  commit(fx.work, "a.txt");
   assert.deepEqual(await fx.keys(), []);
 });
 
