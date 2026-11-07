@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Runs `collect all` for the Today page every 15 minutes.
+  Install: cp scripts/launchd/com.gtmboard.collect.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/com.gtmboard.collect.plist
+  Remove:  launchctl unload ~/Library/LaunchAgents/com.gtmboard.collect.plist
+  Paths point at the main checkout, /Users/admin/gtm-board. Change them on another machine.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.gtmboard.collect</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/admin/gtm-board/server/node_modules/.bin/tsx</string>
+    <string>/Users/admin/gtm-board/scripts/collect.ts</string>
+    <string>all</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/admin/gtm-board</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/admin/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>StartInterval</key>
+  <integer>900</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>Nice</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/admin/Library/Logs/gtm-board-collect.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/admin/Library/Logs/gtm-board-collect.log</string>
+</dict>
+</plist>

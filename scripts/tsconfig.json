@@ -1,0 +1,8 @@
+{
+  "extends": "../server/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "typeRoots": ["../server/node_modules/@types"]
+  },
+  "include": ["collect.ts"]
+}
