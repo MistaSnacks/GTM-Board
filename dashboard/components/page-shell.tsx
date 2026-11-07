@@ -48,7 +48,7 @@ export default function PageShell({ projects, activeProject, children }: PageShe
   }, [router]);
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
+    <div className="app-shell" style={{ display: "flex", minHeight: "100vh" }}>
       <Sidebar
         projects={projects}
         activeProject={activeProject}

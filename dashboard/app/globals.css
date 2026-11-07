@@ -422,3 +422,24 @@ button.today-section-head:not(:disabled) { cursor: pointer; }
 }
 
 .today-load-error { padding: 16px; margin-bottom: 24px; border-left: 3px solid var(--red); }
+
+/* Phone: the sidebar becomes a top strip, and the page uses the full width. */
+@media (max-width: 768px) {
+  .app-shell { flex-direction: column !important; }
+  .sidebar {
+    position: static;
+    width: 100%;
+    height: auto;
+    padding: 12px 0 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-logo { padding: 0 16px 10px !important; margin-bottom: 0 !important; border-bottom: 0 !important; }
+  .sidebar-nav { display: flex !important; flex: none !important; overflow-x: auto !important; overflow-y: hidden !important; }
+  .sidebar-nav > div { display: flex; }
+  .sidebar-section-label, .sidebar-footer { display: none !important; }
+  .sidebar-item { padding: 10px 14px; white-space: nowrap; border-left: 0; border-bottom: 3px solid transparent; }
+  .sidebar-item.active { border-left-color: transparent; border-bottom-color: var(--mint); }
+  .main-content { margin-left: 0; padding: 16px; width: 100%; min-width: 0; }
+  .today-section-hint { display: none; }
+}

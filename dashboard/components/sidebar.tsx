@@ -226,6 +226,7 @@ export default function Sidebar({
     <nav className="sidebar">
       {/* Logo */}
       <div
+        className="sidebar-logo"
         style={{
           padding: "0 20px 20px 20px",
           borderBottom: "1px solid var(--border)",
@@ -247,7 +248,7 @@ export default function Sidebar({
       </div>
 
       {/* Nav sections */}
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      <div className="sidebar-nav" style={{ flex: 1, overflowY: "auto" }}>
         {NAV_SECTIONS.map((section, sIdx) => (
           <div key={sIdx}>
             {section.label && (
@@ -276,6 +277,7 @@ export default function Sidebar({
 
       {/* Footer: project switcher + refresh */}
       <div
+        className="sidebar-footer"
         style={{
           padding: "16px 20px",
           borderTop: "1px solid var(--border)",
