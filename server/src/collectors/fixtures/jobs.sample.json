@@ -1,0 +1,47 @@
+{
+  "jobs": [
+    {
+      "id": "aaa111", "name": "nightly-audit", "prompt": "SECRET-PROMPT-TEXT: use token sk-live-0123456789abcdef0123456789abcdef",
+      "enabled": true, "state": "scheduled", "deliver": "telegram:secret-chat",
+      "last_status": "ok", "last_error": null, "last_delivery_error": null,
+      "last_run_at": "2026-11-06T07:07:00-08:00", "next_run_at": "2026-11-07T07:07:00-08:00"
+    },
+    {
+      "id": "bbb222", "name": "triage", "prompt": "SECRET-PROMPT-TEXT",
+      "enabled": true, "state": "scheduled",
+      "last_status": "error", "last_error": "HTTP 401 for Bearer abcdefghijklmnopqrstuvwxyz0123456789ABCDEF while calling the API", "last_delivery_error": null,
+      "last_run_at": "2026-11-06T18:12:05-08:00", "next_run_at": "2026-11-06T18:42:05-08:00"
+    },
+    {
+      "id": "ccc333", "name": "weekly-blog", "prompt": "SECRET-PROMPT-TEXT",
+      "enabled": true, "state": "scheduled",
+      "last_status": "ok", "last_error": null, "last_delivery_error": "no delivery target resolved for deliver=telegram",
+      "last_run_at": "2026-11-03T09:02:33-08:00", "next_run_at": "2026-11-10T09:00:00-08:00"
+    },
+    {
+      "id": "ddd444", "name": "market-fit", "prompt": "SECRET-PROMPT-TEXT",
+      "enabled": true, "state": "scheduled",
+      "last_status": "ok", "last_error": null, "last_delivery_error": null,
+      "last_run_at": "2026-11-02T08:01:36-08:00", "next_run_at": "2026-11-06T15:00:00-08:00"
+    },
+    {
+      "id": "eee555", "name": "just-late", "prompt": "SECRET-PROMPT-TEXT",
+      "enabled": true, "state": "scheduled",
+      "last_status": "ok", "last_error": null, "last_delivery_error": null,
+      "last_run_at": "2026-11-06T17:00:00-08:00", "next_run_at": "2026-11-06T17:45:00-08:00"
+    },
+    {
+      "id": "fff666", "name": "never-ran", "prompt": "SECRET-PROMPT-TEXT",
+      "enabled": true, "state": "scheduled",
+      "last_status": null, "last_error": null, "last_delivery_error": null,
+      "last_run_at": null, "next_run_at": "2026-11-07T09:00:00-08:00"
+    },
+    {
+      "id": "ggg777", "name": "paused-and-broken", "prompt": "SECRET-PROMPT-TEXT",
+      "enabled": false, "state": "paused",
+      "last_status": "error", "last_error": "boom", "last_delivery_error": "no target",
+      "last_run_at": "2026-09-12T07:08:04-07:00", "next_run_at": "2026-09-13T07:07:00-07:00"
+    }
+  ],
+  "updated_at": "2026-11-06T18:13:00-08:00"
+}
