@@ -43,6 +43,7 @@ import {
   updateGoogleCampaign,
   listGoogleCampaigns,
 } from "./connectors/google-ads-write.ts";
+import { registerItemTools } from "./items/register.ts";
 
 const server = new McpServer({
   name: "gtm-board",
@@ -1157,6 +1158,8 @@ server.tool(
     return { content: [{ type: "text" as const, text: help }] };
   }
 );
+
+registerItemTools(server);
 
 // ── Start server ──
 
