@@ -68,11 +68,11 @@ test("the year boundary moves the daily key with the Pacific calendar", () => {
   assert.equal(dailyKey("2027-01-01T08:00:00Z"), "rule:gl-visitors-daily:2027-01-01");
 });
 
-test("a daily item is due at the end of its Pacific day, and a weekly item at the end of that Monday", () => {
+test("a daily item is due at the end of its Pacific day, and a weekly item at the end of that ISO week", () => {
   const items = generateRecurring(new Date("2026-11-06T20:00:00Z"));
   const due = (id: string) => items.find((i) => i.dedupe_key.startsWith(`rule:${id}:`))?.due_at;
   assert.equal(due("gl-visitors-daily"), "2026-11-07T07:59:59.000Z");
-  assert.equal(due("tl-audit-weekly"), "2026-11-03T07:59:59.000Z");
+  assert.equal(due("tl-audit-weekly"), "2026-11-09T07:59:59.000Z");
 
   const summer = generateRecurring(new Date("2026-07-15T20:00:00Z"));
   assert.equal(summer.find((i) => i.dedupe_key.startsWith("rule:gl-visitors-daily:"))?.due_at, "2026-07-16T06:59:59.000Z");

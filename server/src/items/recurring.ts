@@ -183,16 +183,17 @@ export function endOfDay(date: CivilDate, timeZone: string = RECURRING_TIMEZONE)
 }
 
 /**
- * The items for the daily and ISO-week period that holds `now`. A weekly item is due at the
- * end of that week's Monday. A weekly item appears for the whole week, so a missed Monday
- * run still creates it, and addItem keeps one row for each period.
+ * The items for the daily and ISO-week period that holds `now`. An item is due at the end of its
+ * period: the Pacific day, or the Sunday of the ISO week. A weekly item exists for the whole week, so
+ * a run that starts late still creates it and the item is not overdue before the week ends.
+ * addItem keeps one row for each period.
  */
 export function generateRecurring(now: Date): ItemInput[] {
   const today = civilDate(now);
-  const monday = isoWeekMonday(today);
+  const sunday = fromUtcDay(utcDay(isoWeekMonday(today)) + 6 * DAY_MS);
   const periods: Record<RecurringPeriod, { key: string; due: CivilDate }> = {
     daily: { key: dayKey(today), due: today },
-    weekly: { key: isoWeekKey(today), due: monday },
+    weekly: { key: isoWeekKey(today), due: sunday },
   };
   return RECURRING_TEMPLATES.map((t) => ({
     project: t.project,
