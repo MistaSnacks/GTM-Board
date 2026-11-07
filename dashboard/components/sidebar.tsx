@@ -16,7 +16,10 @@ interface NavSection {
 
 const NAV_SECTIONS: NavSection[] = [
   {
-    items: [{ label: "Overview", href: "/", icon: "grid" }],
+    items: [
+      { label: "Today", href: "/today", icon: "today" },
+      { label: "Overview", href: "/", icon: "grid" },
+    ],
   },
   {
     label: "CHANNELS",
@@ -72,6 +75,16 @@ function SidebarIcon({ name }: { name: string }) {
           <rect x="14" y="3" width="7" height="7" rx="1" />
           <rect x="3" y="14" width="7" height="7" rx="1" />
           <rect x="14" y="14" width="7" height="7" rx="1" />
+        </svg>
+      );
+    case "today":
+      return (
+        <svg {...props}>
+          <rect x="4" y="3" width="16" height="18" rx="2" />
+          <path d="M8 9l1.5 1.5L12 8" />
+          <path d="M14 9.5h3" />
+          <path d="M8 15l1.5 1.5L12 14" />
+          <path d="M14 15.5h3" />
         </svg>
       );
     case "search":

@@ -34,7 +34,7 @@ const COLUMNS: Column[] = ["backlog", "preparing", "live", "measuring", "done"];
 
 // --- Helper: resolve project slug to project_id ---
 
-async function getProjectId(project: string): Promise<string | null> {
+export async function getProjectId(project: string): Promise<string | null> {
   const { data, error } = await supabase
     .from("gtm_projects")
     .select("id")

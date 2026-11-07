@@ -4,11 +4,14 @@ import type { Item } from "./types.ts";
 
 type ItemRow = Omit<Item, "project">;
 
+/** Only `from` is used, so the server and the dashboard can each pass a client from their own supabase-js copy. */
+export type ItemsClient = Pick<SupabaseClient, "from">;
+
 // PostgREST puts `in` lists in the URL, so a long key list is read in chunks.
 const KEY_CHUNK = 40;
 
 /** ItemsDb over the gtm_items table. The caller owns the client, so the dashboard and the server can both use it. */
-export function createSupabaseItemsDb(client: SupabaseClient): ItemsDb {
+export function createSupabaseItemsDb(client: ItemsClient): ItemsDb {
   async function withProjectSlugs(rows: ItemRow[]): Promise<Item[]> {
     if (!rows.some((row) => row.project_id)) return rows.map((row) => ({ ...row, project: null }));
     const { data, error } = await client.from("gtm_projects").select("id, slug");
