@@ -1,0 +1,24 @@
+{
+  "owner": "MistaSnacks",
+  "repos": [
+    { "slug": "tailor", "path": "/Users/admin/TAILOR", "github": "MistaSnacks/TAILOR", "project": "tailor" },
+    { "slug": "gtm-board", "path": "/Users/admin/gtm-board", "github": "MistaSnacks/GTM-Board", "project": null },
+    {
+      "slug": "groomlocal",
+      "path": "/Users/admin/GroomingBook Directory/pnw-grooming-directory",
+      "github": "mistasnacks/groomhub",
+      "project": "groomlocal"
+    },
+    { "slug": "web-dev-harness", "path": "/Users/admin/harnesses/web-dev", "github": null, "project": null }
+  ],
+  "unpushedMaxAgeDays": 14,
+  "prStaleAfterDays": 7,
+  "hermes": {
+    "jobsPath": "/Users/admin/.hermes/cron/jobs.json",
+    "missedAfterHours": 2
+  },
+  "harness": {
+    "name": "web-dev",
+    "runsDir": "/Users/admin/harnesses/web-dev-runs"
+  }
+}

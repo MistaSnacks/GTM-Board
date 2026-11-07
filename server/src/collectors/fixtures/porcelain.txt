@@ -1,0 +1,8 @@
+ M dashboard/app/page.tsx
+M  server/src/index.ts
+MM server/src/lib/config.ts
+A  docs/new.md
+ D old.md
+R  before.md -> after.md
+?? .env.bak-20261004
+?? scratch/

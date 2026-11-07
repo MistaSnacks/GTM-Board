@@ -7,7 +7,8 @@
     "start": "tsx src/index.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/items/*.test.ts"
+    "test": "tsx --test src/items/*.test.ts src/collectors/*.test.ts",
+    "collect": "tsx ../scripts/collect.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
