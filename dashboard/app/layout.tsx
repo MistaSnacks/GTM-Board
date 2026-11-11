@@ -1,10 +1,19 @@
 import type { Metadata } from "next";
-import { Outfit, Inter, JetBrains_Mono } from "next/font/google";
+import { Caveat, Fraunces, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const outfit = Outfit({
+// The d3a display face. The variable keeps the name that every component already reads.
+const display = Fraunces({
   subsets: ["latin"],
   variable: "--font-outfit",
+  axes: ["opsz", "SOFT"],
+  display: "swap",
+});
+
+const hand = Caveat({
+  weight: "600",
+  subsets: ["latin"],
+  variable: "--font-hand",
   display: "swap",
 });
 
@@ -33,12 +42,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${outfit.variable} ${inter.variable} ${jetbrainsMono.variable}`}
+      className={`${display.variable} ${hand.variable} ${inter.variable} ${jetbrainsMono.variable}`}
     >
-      <body
-        className="font-[family-name:var(--font-inter)]"
-        style={{ background: "var(--bg-deep)" }}
-      >
+      <body className="font-[family-name:var(--font-inter)]">
         {children}
       </body>
     </html>
