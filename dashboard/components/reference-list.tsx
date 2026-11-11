@@ -186,23 +186,13 @@ export default function ReferenceList({ project, cardSlug, initialReferences }: 
           />
           <button
             onClick={handleAdd}
-            style={{
-              padding: "6px 12px",
-              background: "var(--mint)",
-              color: "var(--bg-card)",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontFamily: "var(--font-mono)",
-              fontSize: "11px",
-              fontWeight: 600,
-            }}
+            className="pill pill-olive"
           >
             ADD
           </button>
         </div>
         {error && (
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "#ef4444" }}>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--red)" }}>
             {error}
           </div>
         )}

@@ -240,25 +240,26 @@ export default function CardDetailModal({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "rgba(0, 0, 0, 0.6)",
-            backdropFilter: "blur(4px)",
           }}
+          className="craft-backdrop"
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 8 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="card"
+            className="card piece-lg"
             style={{
               width: "100%",
               maxWidth: "560px",
               maxHeight: "85vh",
-              overflow: "auto",
-              padding: "24px",
-              borderLeft: `4px solid ${channelColorMap[card.channel]}`,
+              display: "flex",
+              flexDirection: "column",
+              padding: "14px",
             }}
           >
+            {/* The body scrolls inside the patch, so the cloth and its stitches stay in place. */}
+            <div style={{ overflow: "auto", padding: "18px" }}>
             {/* Header */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
               <h2
@@ -358,7 +359,7 @@ export default function CardDetailModal({
               <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: "12px", fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--text-muted)" }}>
                 <span>Priority: <strong style={{ color: "var(--text-primary)" }}>{agentTask.priority}</strong></span>
                 {agentTask.assigned_agent && <span>Agent: <strong style={{ color: "var(--text-primary)" }}>{agentTask.assigned_agent}</strong></span>}
-                {agentTask.error && <span style={{ color: "#ef4444" }}>Error: {agentTask.error} (retries {agentTask.retries})</span>}
+                {agentTask.error && <span style={{ color: "var(--red)" }}>Error: {agentTask.error} (retries {agentTask.retries})</span>}
               </div>
             )}
 
@@ -461,6 +462,7 @@ export default function CardDetailModal({
               cardSlug={card.id}
               initialReferences={card.references ?? []}
             />
+            </div>
           </motion.div>
         </motion.div>
       )}

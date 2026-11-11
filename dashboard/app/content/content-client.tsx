@@ -93,7 +93,7 @@ export default function ContentClient({ stats, postCards, cadence, project }: Co
                         fontSize: "9px",
                         fontWeight: 600,
                         fontFamily: "var(--font-mono)",
-                        backgroundColor: platform === "LI" ? "rgba(10, 102, 194, 0.15)" : "rgba(255, 69, 0, 0.15)",
+                        backgroundColor: `color-mix(in srgb, var(${platform === "LI" ? "--channel-linkedin" : "--channel-reddit"}) 15%, transparent)`,
                         color: platform === "LI" ? "var(--channel-linkedin)" : "var(--channel-reddit)",
                         border: `1px solid ${platform === "LI" ? "var(--channel-linkedin)" : "var(--channel-reddit)"}`,
                       }}

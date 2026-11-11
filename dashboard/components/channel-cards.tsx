@@ -16,6 +16,10 @@ interface CardConfig {
   key: string;
   name: string;
   colorVar: string;
+  /** the card's patch; cream when absent */
+  patch?: "denim" | "olive" | "mustard";
+  /** the icon tile's cloth */
+  cloth: "scarlet" | "denim" | "olive" | "mustard" | "charcoal" | "cream";
   initial: string;
   metricKeys: string[];
   metricLabels: Record<string, string>;
@@ -27,6 +31,8 @@ const CARD_CONFIGS: CardConfig[] = [
     key: "reddit",
     name: "Reddit",
     colorVar: "var(--channel-reddit)",
+    patch: "mustard",
+    cloth: "scarlet",
     initial: "R",
     metricKeys: ["karma", "avg_upvotes", "referral_clicks", "posts"],
     metricLabels: {
@@ -41,6 +47,8 @@ const CARD_CONFIGS: CardConfig[] = [
     key: "linkedin",
     name: "LinkedIn",
     colorVar: "var(--channel-linkedin)",
+    patch: "denim",
+    cloth: "cream",
     initial: "L",
     metricKeys: ["followers", "engagement_rate", "impressions", "posts"],
     metricLabels: {
@@ -55,6 +63,8 @@ const CARD_CONFIGS: CardConfig[] = [
     key: "search-console",
     name: "SEO",
     colorVar: "var(--channel-seo)",
+    patch: "olive",
+    cloth: "cream",
     initial: "S",
     metricKeys: ["organic_clicks", "branded_search_volume", "avg_position", "total_impressions"],
     metricLabels: {
@@ -69,6 +79,7 @@ const CARD_CONFIGS: CardConfig[] = [
     key: "google_ads",
     name: "Google Ads",
     colorVar: "var(--channel-google)",
+    cloth: "mustard",
     initial: "G",
     metricKeys: ["google_ad_spend", "google_ad_clicks", "google_ad_conversions", "google_ad_cpa"],
     metricLabels: {
@@ -83,6 +94,8 @@ const CARD_CONFIGS: CardConfig[] = [
     key: "meta_ads",
     name: "Meta Ads",
     colorVar: "var(--channel-meta)",
+    patch: "denim",
+    cloth: "mustard",
     initial: "M",
     metricKeys: ["meta_ad_spend", "meta_ad_impressions", "meta_ad_conversions", "meta_ad_cpa"],
     metricLabels: {
@@ -154,7 +167,7 @@ export default function ChannelCards({ channels, sparklines, channelLinks }: Cha
         const cardContent = (
           <motion.div
             key={config.key}
-            className="card"
+            className={`card${config.patch ? ` cloth-${config.patch}` : ""}`}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, delay: index * 0.05, ease: "easeOut" }}
@@ -179,19 +192,8 @@ export default function ChannelCards({ channels, sparklines, channelLinks }: Cha
                 {/* Header */}
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <div
-                    style={{
-                      width: "28px",
-                      height: "28px",
-                      borderRadius: "8px",
-                      backgroundColor: `color-mix(in srgb, ${config.colorVar} 15%, transparent)`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontFamily: "var(--font-outfit)",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      color: config.colorVar,
-                    }}
+                    className={`felt-tile felt-tile--${config.cloth}`}
+                    style={{ width: "30px", height: "30px", fontFamily: "var(--font-outfit)", fontSize: "15px" }}
                   >
                     {config.initial}
                   </div>
@@ -222,19 +224,8 @@ export default function ChannelCards({ channels, sparklines, channelLinks }: Cha
                 {/* Header row */}
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <div
-                    style={{
-                      width: "28px",
-                      height: "28px",
-                      borderRadius: "8px",
-                      backgroundColor: `color-mix(in srgb, ${config.colorVar} 15%, transparent)`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontFamily: "var(--font-outfit)",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      color: config.colorVar,
-                    }}
+                    className={`felt-tile felt-tile--${config.cloth}`}
+                    style={{ width: "30px", height: "30px", fontFamily: "var(--font-outfit)", fontSize: "15px" }}
                   >
                     {config.initial}
                   </div>

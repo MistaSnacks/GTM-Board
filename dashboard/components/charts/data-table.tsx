@@ -56,7 +56,7 @@ export default function DataTable({ columns, data, emptyMessage = "No data avail
   }
 
   return (
-    <div className="card" style={{ overflow: "hidden" }}>
+    <div className="card" style={{ padding: "14px 16px" }}>
       <div style={{ overflowX: "auto" }}>
         <table className="data-table">
           <thead>

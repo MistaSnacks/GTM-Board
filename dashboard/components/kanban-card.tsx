@@ -14,6 +14,15 @@ const channelColorMap: Record<Channel, string> = {
   other: "var(--text-muted)",
 };
 
+/** The patch a card is cut from. Channels with no cloth of their own sit on cream and keep a swatch. */
+const channelClothMap: Partial<Record<Channel, string>> = {
+  linkedin: "denim",
+  meta: "denim",
+  google: "mustard",
+  ugc: "mustard",
+  seo: "olive",
+};
+
 function formatMetricValue(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}k`;
@@ -55,7 +64,8 @@ interface KanbanCardProps {
 }
 
 export default function KanbanCard({ card, index, onCardClick }: KanbanCardProps) {
-  const borderColor = channelColorMap[card.channel];
+  const channelColor = channelColorMap[card.channel];
+  const cloth = channelClothMap[card.channel];
   const metricsText = card.metrics ? renderMetrics(card.metrics) : null;
   const hasDetails = !!(card.description || card.body?.trim());
 
@@ -66,34 +76,32 @@ export default function KanbanCard({ card, index, onCardClick }: KanbanCardProps
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className="card"
+          className={`card piece-sm${cloth ? ` cloth-${cloth}` : ""}${snapshot.isDragging ? " is-lifted" : ""}`}
           onClick={() => onCardClick?.(card)}
           style={{
             ...provided.draggableProps.style,
-            padding: "12px",
+            padding: "13px 14px",
             marginBottom: "8px",
-            borderLeft: `3px solid ${borderColor}`,
-            borderColor: snapshot.isDragging ? "var(--mint)" : undefined,
-            boxShadow: snapshot.isDragging
-              ? "0 8px 24px rgba(0,0,0,0.5), 0 0 0 1px var(--mint)"
-              : undefined,
             cursor: "pointer",
           }}
         >
           {/* Title */}
-          <div
-            style={{
-              fontFamily: "var(--font-inter)",
-              fontSize: "13px",
-              fontWeight: 500,
-              color: "var(--text-primary)",
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            }}
-          >
-            {card.title}
+          <div style={{ display: "flex", gap: "7px" }}>
+            {!cloth && <span className="felt-swatch" style={{ background: channelColor, marginTop: "4px" }} />}
+            <div
+              style={{
+                fontFamily: "var(--font-inter)",
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "var(--text-primary)",
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
+              {card.title}
+            </div>
           </div>
 
           {/* Description preview */}
@@ -172,7 +180,6 @@ export default function KanbanCard({ card, index, onCardClick }: KanbanCardProps
                   fontSize: "10px",
                   fontFamily: "var(--font-mono)",
                   color: "var(--text-muted)",
-                  opacity: 0.6,
                 }}
               >
                 &#8599;

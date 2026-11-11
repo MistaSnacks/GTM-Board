@@ -11,12 +11,12 @@ import type { BoardData, CardData, Column } from "@/lib/types";
 import KanbanCard from "./kanban-card";
 import CardDetailModal from "./card-detail-modal";
 
-const COLUMNS: { key: Column; label: string }[] = [
-  { key: "backlog", label: "BACKLOG" },
-  { key: "preparing", label: "PREPARING" },
-  { key: "live", label: "LIVE" },
-  { key: "measuring", label: "MEASURING" },
-  { key: "done", label: "DONE" },
+const COLUMNS: { key: Column; label: string; cloth: string }[] = [
+  { key: "backlog", label: "BACKLOG", cloth: "tan" },
+  { key: "preparing", label: "PREPARING", cloth: "mustard" },
+  { key: "live", label: "LIVE", cloth: "scarlet" },
+  { key: "measuring", label: "MEASURING", cloth: "denim" },
+  { key: "done", label: "DONE", cloth: "olive" },
 ];
 
 interface KanbanBoardProps {
@@ -60,7 +60,7 @@ export default function KanbanBoard({ board, project, onMoveCard }: KanbanBoardP
       >
         {COLUMNS.map((col) => (
           <div key={col.key} className="kanban-column" style={{ padding: "12px", minHeight: 200 }}>
-            <ColumnHeader label={col.label} count={board.columns[col.key]?.length ?? 0} />
+            <ColumnHeader label={col.label} cloth={col.cloth} count={board.columns[col.key]?.length ?? 0} />
           </div>
         ))}
       </div>
@@ -87,7 +87,7 @@ export default function KanbanBoard({ board, project, onMoveCard }: KanbanBoardP
                   className="kanban-column"
                   style={{ padding: "12px", minHeight: 200 }}
                 >
-                  <ColumnHeader label={col.label} count={cards.length} />
+                  <ColumnHeader label={col.label} cloth={col.cloth} count={cards.length} />
                   {cards.map((card, idx) => (
                     <KanbanCard key={card.id} card={card} index={idx} onCardClick={setSelectedCard} />
                   ))}
@@ -103,52 +103,11 @@ export default function KanbanBoard({ board, project, onMoveCard }: KanbanBoardP
   );
 }
 
-function ColumnHeader({ label, count }: { label: string; count: number }) {
+function ColumnHeader({ label, count, cloth }: { label: string; count: number; cloth: string }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        marginBottom: "12px",
-      }}
-    >
-      {/* Status dot */}
-      <span
-        style={{
-          width: "6px",
-          height: "6px",
-          borderRadius: "50%",
-          backgroundColor: count > 0 ? "var(--mint)" : "var(--text-muted)",
-          flexShrink: 0,
-        }}
-      />
-      {/* Column name */}
-      <span
-        style={{
-          textTransform: "uppercase",
-          fontFamily: "var(--font-mono)",
-          fontSize: "12px",
-          fontWeight: 600,
-          letterSpacing: "0.08em",
-          color: "var(--text-muted)",
-        }}
-      >
-        {label}
-      </span>
-      {/* Count badge */}
-      <span
-        style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: "11px",
-          background: "var(--bg-card-raised)",
-          borderRadius: "9999px",
-          padding: "2px 8px",
-          color: "var(--text-muted)",
-        }}
-      >
-        {count}
-      </span>
+    <div className={`pill pill-${cloth} column-head`}>
+      {label}
+      <span className="column-head__count">{count}</span>
     </div>
   );
 }

@@ -12,14 +12,9 @@ interface CadenceTrackerProps {
   redditCommentsTarget: number;
 }
 
-function getDotStyle(day: CadenceDay): React.CSSProperties {
-  if (day.done) {
-    return {
-      backgroundColor: "color-mix(in srgb, var(--mint) 20%, transparent)",
-      border: "1px solid var(--mint)",
-      color: "var(--mint)",
-    };
-  }
+/** Done is olive felt, missed is scarlet, still to come is cream. */
+function dayCloth(day: CadenceDay): string {
+  if (day.done) return "olive";
 
   // Determine if the day is in the past (missed) by comparing day labels
   const today = new Date();
@@ -28,19 +23,7 @@ function getDotStyle(day: CadenceDay): React.CSSProperties {
 
   const isPast = dayIndex >= 0 && dayIndex < currentDayIndex;
 
-  if (isPast) {
-    return {
-      backgroundColor: "color-mix(in srgb, var(--red) 20%, transparent)",
-      border: "1px solid var(--red)",
-      color: "var(--red)",
-    };
-  }
-
-  return {
-    backgroundColor: "var(--bg-card-raised)",
-    border: "1px solid var(--border)",
-    color: "var(--text-muted)",
-  };
+  return isPast ? "scarlet" : "cream";
 }
 
 function CountSpan({ done, target }: { done: number; target: number }) {
@@ -75,20 +58,8 @@ export default function CadenceTracker({
           <div
             key={`${day.day}-${index}`}
             title={`${day.day}: ${day.type}`}
-            style={{
-              width: "28px",
-              height: "28px",
-              borderRadius: "8px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontFamily: "var(--font-mono)",
-              fontSize: "10px",
-              fontWeight: 600,
-              cursor: "default",
-              flexShrink: 0,
-              ...getDotStyle(day),
-            }}
+            className={`felt-tile felt-tile--${dayCloth(day)}`}
+            style={{ width: "28px", height: "28px", fontFamily: "var(--font-mono)", fontSize: "10px", cursor: "default" }}
           >
             {day.day.slice(0, 2)}
           </div>

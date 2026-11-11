@@ -214,17 +214,7 @@ export default function SubtaskList({ project, cardSlug, initialSubtasks }: Subt
         />
         <button
           onClick={handleAdd}
-          style={{
-            padding: "6px 12px",
-            background: "var(--mint)",
-            color: "var(--bg-card)",
-            border: "none",
-            borderRadius: "6px",
-            cursor: "pointer",
-            fontFamily: "var(--font-mono)",
-            fontSize: "11px",
-            fontWeight: 600,
-          }}
+          className="pill pill-olive"
         >
           ADD
         </button>

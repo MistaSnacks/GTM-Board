@@ -46,20 +46,6 @@ export default function KanbanClient({ board, project }: KanbanClientProps) {
   const channels: (Channel | "all")[] = ["all", "reddit", "linkedin", "seo", "meta", "google", "ugc", "other"];
   const types: (CardType | "all")[] = ["all", "ad", "post", "outreach", "seo", "initiative", "ugc"];
 
-  const selectStyle: React.CSSProperties = {
-    fontFamily: "var(--font-mono)",
-    fontSize: "12px",
-    color: "var(--mint)",
-    backgroundColor: "var(--bg-card)",
-    border: "1px solid var(--border)",
-    borderRadius: "8px",
-    padding: "6px 12px",
-    outline: "none",
-    cursor: "pointer",
-    textTransform: "uppercase",
-    appearance: "none",
-    WebkitAppearance: "none",
-  };
 
   return (
     <div>
@@ -67,14 +53,14 @@ export default function KanbanClient({ board, project }: KanbanClientProps) {
         title="Kanban Board"
         actions={
           <div style={{ display: "flex", gap: "8px" }}>
-            <select value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)} style={selectStyle}>
+            <select value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)} className="pill pill-tan">
               {channels.map((ch) => (
                 <option key={ch} value={ch}>
                   {ch === "all" ? "All Channels" : ch.toUpperCase()}
                 </option>
               ))}
             </select>
-            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={selectStyle}>
+            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="pill pill-tan">
               {types.map((t) => (
                 <option key={t} value={t}>
                   {t === "all" ? "All Types" : t.toUpperCase()}

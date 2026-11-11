@@ -225,30 +225,20 @@ export default function Sidebar({
   return (
     <nav className="sidebar">
       {/* Logo */}
-      <div
-        className="sidebar-logo"
-        style={{
-          padding: "0 20px 20px 20px",
-          borderBottom: "1px solid var(--border)",
-          marginBottom: "8px",
-        }}
-      >
+      <div className="sidebar-logo" style={{ padding: "0 16px 12px" }}>
         <div
-          style={{
-            fontFamily: "var(--font-outfit)",
-            fontWeight: 700,
-            fontSize: "22px",
-            letterSpacing: "-0.02em",
-            userSelect: "none",
-          }}
+          className="d3a-label d3a-display"
+          style={{ fontSize: "21px", gap: "5px", userSelect: "none", width: "100%" }}
         >
-          <span style={{ color: "#ffffff" }}>GTM</span>
-          <span style={{ color: "var(--mint)" }}>BOARD</span>
+          <span>GTM</span>
+          <span className="d3a-script" style={{ color: "var(--red)", fontSize: "25px", lineHeight: 1 }}>
+            board
+          </span>
         </div>
       </div>
 
       {/* Nav sections */}
-      <div className="sidebar-nav" style={{ flex: 1, overflowY: "auto" }}>
+      <div className="sidebar-nav" style={{ flex: 1, overflowY: "auto", paddingBottom: "12px" }}>
         {NAV_SECTIONS.map((section, sIdx) => (
           <div key={sIdx}>
             {section.label && (
@@ -279,8 +269,8 @@ export default function Sidebar({
       <div
         className="sidebar-footer"
         style={{
-          padding: "16px 20px",
-          borderTop: "1px solid var(--border)",
+          padding: "14px 16px 16px",
+          borderTop: "2px dashed var(--border)",
           display: "flex",
           flexDirection: "column",
           gap: "10px",
@@ -290,25 +280,8 @@ export default function Sidebar({
         <select
           value={activeProject}
           onChange={(e) => onProjectChange?.(e.target.value)}
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "12px",
-            color: "var(--mint)",
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: "8px",
-            padding: "6px 10px",
-            outline: "none",
-            cursor: "pointer",
-            textTransform: "uppercase",
-            appearance: "none",
-            WebkitAppearance: "none",
-            width: "100%",
-            paddingRight: "28px",
-            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%2310B981' fill='none' stroke-width='1.5'/%3E%3C/svg%3E")`,
-            backgroundRepeat: "no-repeat",
-            backgroundPosition: "right 8px center",
-          }}
+          className="pill pill-denim"
+          style={{ width: "100%", height: "36px", borderWidth: "0 18px" }}
         >
           {projects.map((project) => (
             <option key={project} value={project}>
@@ -322,21 +295,8 @@ export default function Sidebar({
           <button
             onClick={onRefresh}
             disabled={isRefreshing}
-            style={{
-              background: "none",
-              border: "1px solid var(--border)",
-              borderRadius: "6px",
-              padding: "5px 8px",
-              cursor: isRefreshing ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-              color: isRefreshing ? "var(--text-muted)" : "var(--mint)",
-              fontFamily: "var(--font-mono)",
-              fontSize: "11px",
-              flex: 1,
-              justifyContent: "center",
-            }}
+            className="pill pill-tan"
+            style={{ flex: 1, height: "30px", borderWidth: "0 15px", fontSize: "11px", letterSpacing: "0.04em" }}
           >
             <svg
               width="12"
@@ -364,7 +324,6 @@ export default function Sidebar({
               height: "6px",
               borderRadius: "50%",
               backgroundColor: "var(--mint)",
-              boxShadow: "0 0 6px var(--mint)",
               flexShrink: 0,
             }}
           />

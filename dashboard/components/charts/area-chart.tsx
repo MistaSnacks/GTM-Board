@@ -10,9 +10,9 @@ import {
 } from "recharts";
 
 const CHART_THEME = {
-  grid: "rgba(255,255,255,0.04)",
-  axis: "#64748B",
-  tooltip: { bg: "#1A1A25", border: "rgba(255,255,255,0.08)" },
+  grid: "var(--border)",
+  axis: "var(--text-muted)",
+  tooltip: { bg: "var(--bg-card)", border: "var(--border)" },
 };
 
 interface AreaChartProps {
@@ -77,7 +77,7 @@ export default function AreaChartCard({
             borderRadius: "8px",
             fontSize: "12px",
             fontFamily: "var(--font-mono)",
-            color: "#FAFAFA",
+            color: "var(--text-primary)",
           }}
           labelStyle={{ color: CHART_THEME.axis, fontSize: "11px" }}
         />

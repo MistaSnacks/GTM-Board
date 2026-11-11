@@ -9,6 +9,8 @@ interface KPIGaugesProps {
   kpis: KPIData[];
 }
 
+const TILE_CLOTHS = ["denim", "mustard", "olive"] as const;
+
 export default function KPIGauges({ kpis }: KPIGaugesProps) {
   return (
     <div
@@ -21,7 +23,7 @@ export default function KPIGauges({ kpis }: KPIGaugesProps) {
       {kpis.map((kpi, index) => (
         <motion.div
           key={kpi.label}
-          className="card"
+          className={`card cloth-${TILE_CLOTHS[index % TILE_CLOTHS.length]}`}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{

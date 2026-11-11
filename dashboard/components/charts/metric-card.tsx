@@ -15,6 +15,8 @@ interface MetricCardProps {
   index?: number;
 }
 
+const TILE_CLOTHS = ["denim", "mustard", "olive"] as const;
+
 export default function MetricCard({
   label,
   value,
@@ -31,7 +33,7 @@ export default function MetricCard({
 
   return (
     <motion.div
-      className="card"
+      className={`card cloth-${TILE_CLOTHS[index % TILE_CLOTHS.length]}`}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: index * 0.04, ease: "easeOut" }}

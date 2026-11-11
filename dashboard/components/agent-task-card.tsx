@@ -2,11 +2,11 @@
 
 import type { AgentTaskData } from "@/lib/types";
 
-const priorityColorMap: Record<AgentTaskData["priority"], string> = {
-  critical: "#ef4444",
-  high: "#f97316",
-  medium: "#3b82f6",
-  low: "#6b7280",
+const priorityPiece: Record<AgentTaskData["priority"], { cloth: string; badge: string }> = {
+  critical: { cloth: "", badge: "badge-critical" },
+  high: { cloth: " cloth-mustard", badge: "badge-ink" },
+  medium: { cloth: " cloth-denim", badge: "badge-stable" },
+  low: { cloth: "", badge: "badge-stable" },
 };
 
 interface AgentTaskCardProps {
@@ -15,16 +15,14 @@ interface AgentTaskCardProps {
 }
 
 export default function AgentTaskCard({ task, onClick }: AgentTaskCardProps) {
-  const borderColor = priorityColorMap[task.priority];
 
   return (
     <div
-      className="card"
+      className={`card piece-sm${priorityPiece[task.priority].cloth}`}
       onClick={onClick}
       style={{
-        padding: "12px",
+        padding: "13px 14px",
         marginBottom: "8px",
-        borderLeft: `3px solid ${borderColor}`,
         cursor: onClick ? "pointer" : undefined,
       }}
     >
@@ -55,20 +53,7 @@ export default function AgentTaskCard({ task, onClick }: AgentTaskCardProps) {
         }}
       >
         {/* Priority badge */}
-        <span
-          style={{
-            textTransform: "uppercase",
-            fontSize: "10px",
-            fontFamily: "var(--font-mono)",
-            letterSpacing: "0.05em",
-            background: borderColor,
-            padding: "1px 6px",
-            borderRadius: "4px",
-            color: "#fff",
-          }}
-        >
-          {task.priority}
-        </span>
+        <span className={`badge ${priorityPiece[task.priority].badge}`}>{task.priority}</span>
 
         {/* Assigned agent badge */}
         {task.assigned_agent && (
@@ -89,17 +74,7 @@ export default function AgentTaskCard({ task, onClick }: AgentTaskCardProps) {
 
         {/* Error indicator */}
         {task.error && (
-          <span
-            style={{
-              fontSize: "10px",
-              fontFamily: "var(--font-mono)",
-              letterSpacing: "0.05em",
-              background: "#ef4444",
-              padding: "1px 6px",
-              borderRadius: "4px",
-              color: "#fff",
-            }}
-          >
+          <span className="badge badge-critical">
             ERR {task.retries > 0 ? `(${task.retries})` : ""}
           </span>
         )}

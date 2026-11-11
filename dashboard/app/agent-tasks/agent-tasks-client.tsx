@@ -16,12 +16,12 @@ import CardDetailModal from "@/components/card-detail-modal";
 import { moveAgentTaskAction } from "@/app/actions";
 import type { AgentBoardData, AgentTaskColumn, AgentTaskData, CardData } from "@/lib/types";
 
-const COLUMNS: { id: AgentTaskColumn; label: string }[] = [
-  { id: "queued", label: "QUEUED" },
-  { id: "in_progress", label: "IN PROGRESS" },
-  { id: "blocked", label: "BLOCKED" },
-  { id: "review", label: "REVIEW" },
-  { id: "done", label: "DONE" },
+const COLUMNS: { id: AgentTaskColumn; label: string; cloth: string }[] = [
+  { id: "queued", label: "QUEUED", cloth: "tan" },
+  { id: "in_progress", label: "IN PROGRESS", cloth: "mustard" },
+  { id: "blocked", label: "BLOCKED", cloth: "scarlet" },
+  { id: "review", label: "REVIEW", cloth: "denim" },
+  { id: "done", label: "DONE", cloth: "olive" },
 ];
 
 interface AgentTasksClientProps {
@@ -117,20 +117,6 @@ export default function AgentTasksClient({ board, project }: AgentTasksClientPro
     [project]
   );
 
-  const selectStyle: React.CSSProperties = {
-    fontFamily: "var(--font-mono)",
-    fontSize: "12px",
-    color: "var(--mint)",
-    backgroundColor: "var(--bg-card)",
-    border: "1px solid var(--border)",
-    borderRadius: "8px",
-    padding: "6px 12px",
-    outline: "none",
-    cursor: "pointer",
-    textTransform: "uppercase",
-    appearance: "none",
-    WebkitAppearance: "none",
-  };
 
   // Pre-mount: static columns without DnD
   if (!mounted) {
@@ -140,7 +126,7 @@ export default function AgentTasksClient({ board, project }: AgentTasksClientPro
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "12px" }}>
           {COLUMNS.map((col) => (
             <div key={col.id} className="kanban-column" style={{ padding: "12px", minHeight: 200 }}>
-              <ColumnHeader label={col.label} count={filteredBoard.columns[col.id]?.length ?? 0} />
+              <ColumnHeader label={col.label} cloth={col.cloth} count={filteredBoard.columns[col.id]?.length ?? 0} />
             </div>
           ))}
         </div>
@@ -157,7 +143,7 @@ export default function AgentTasksClient({ board, project }: AgentTasksClientPro
             <select
               value={agentFilter}
               onChange={(e) => setAgentFilter(e.target.value)}
-              style={selectStyle}
+              className="pill pill-tan"
             >
               <option value="all">All Agents</option>
               {agents.map((a) => (
@@ -169,7 +155,7 @@ export default function AgentTasksClient({ board, project }: AgentTasksClientPro
             <select
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value)}
-              style={selectStyle}
+              className="pill pill-tan"
             >
               <option value="all">All Priorities</option>
               {priorities.map((p) => (
@@ -195,7 +181,7 @@ export default function AgentTasksClient({ board, project }: AgentTasksClientPro
                     className="kanban-column"
                     style={{ padding: "12px", minHeight: 200 }}
                   >
-                    <ColumnHeader label={col.label} count={tasks.length} />
+                    <ColumnHeader label={col.label} cloth={col.cloth} count={tasks.length} />
                     {tasks.map((task, idx) => (
                       <Draggable draggableId={task.id} index={idx} key={task.id}>
                         {(dragProvided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
@@ -231,50 +217,11 @@ export default function AgentTasksClient({ board, project }: AgentTasksClientPro
   );
 }
 
-function ColumnHeader({ label, count }: { label: string; count: number }) {
+function ColumnHeader({ label, count, cloth }: { label: string; count: number; cloth: string }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        marginBottom: "12px",
-      }}
-    >
-      <span
-        style={{
-          width: "6px",
-          height: "6px",
-          borderRadius: "50%",
-          backgroundColor: count > 0 ? "var(--mint)" : "var(--text-muted)",
-          flexShrink: 0,
-        }}
-      />
-      <span
-        style={{
-          textTransform: "uppercase",
-          fontFamily: "var(--font-mono)",
-          fontSize: "11px",
-          fontWeight: 600,
-          letterSpacing: "0.08em",
-          color: "var(--text-muted)",
-        }}
-      >
-        {label}
-      </span>
-      <span
-        style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: "11px",
-          background: "var(--mint)",
-          borderRadius: "9999px",
-          padding: "2px 8px",
-          color: "var(--bg-card)",
-          fontWeight: 600,
-        }}
-      >
-        {count}
-      </span>
+    <div className={`pill pill-${cloth} column-head`}>
+      {label}
+      <span className="column-head__count">{count}</span>
     </div>
   );
 }
