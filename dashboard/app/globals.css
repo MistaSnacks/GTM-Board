@@ -1,42 +1,51 @@
 @import "tailwindcss";
 @import "./d3a-pills.generated.css";
 @import "./d3a.css";
+@import "./flat.css";
+@import "./groomlocal.css";
 
-/*
- * The token names are from the first dark theme, and every component reads them. They now hold the inks that the
- * d3a kit measures on the cream cloth and the linen ground (4.5:1 or more on the lightest and darkest fibre):
- * --mint is the olive ink (good), --amber the mustard ink (warning), --red the action red (bad),
- * --turquoise the denim ink. A coloured patch sets its own inks (.cloth-* in d3a.css).
- */
+/* The default palette is the flat skin's dark look. Rules in this file read tokens and never name a skin's colour. */
 :root {
-  --bg-deep: #eae3d2;
-  --bg-card: #efe7d5;
-  --bg-card-raised: #e0d5bb;
-  --mint: #3d4f1c;
-  --turquoise: #27396a;
-  --amber: #5c3f00;
-  --red: #8a2318;
-  --silver: #4a4235;
-  --text-primary: #2b2622;
-  --text-muted: #4a4235;
-  --border: #cbbfa0;
-  --tint: rgba(43, 38, 34, 0.06);
-  --glow-mint: rgba(61, 79, 28, 0.14);
-  --glow-red: rgba(138, 35, 24, 0.12);
-  --glow-amber: rgba(92, 63, 0, 0.12);
-  --lift: rgba(45, 32, 20, 0.24);
+  --bg-deep: #0A0A0F;
+  --bg-card: #12121A;
+  --bg-card-raised: #1A1A25;
+  --mint: #10B981;
+  --turquoise: #14B8A6;
+  --amber: #F59E0B;
+  --red: #EF4444;
+  --silver: #C0D0E0;
+  --text-primary: #FAFAFA;
+  --text-muted: #64748B;
+  --border: rgba(255, 255, 255, 0.08);
+  --glow-mint: rgba(16, 185, 129, 0.15);
+  --glow-red: rgba(239, 68, 68, 0.12);
+  --glow-amber: rgba(245, 158, 11, 0.12);
+  --tint: rgba(255, 255, 255, 0.04);
+  --lift: rgba(0, 0, 0, 0.4);
 
-  --thread-denim: #27396a;
-  --thread-olive: #55632f;
-  --thread-mustard: #b97f0f;
-  --thread-terracotta: #b2431d;
-  --thread-scarlet: #a32e22;
+  --channel-reddit: #FF4500;
+  --channel-linkedin: #0A66C2;
+  --channel-meta: #1877F2;
+  --channel-google: #4285F4;
+  --channel-seo: #10B981;
 
-  --channel-reddit: #a8300b;
-  --channel-linkedin: #0a5aad;
-  --channel-meta: #1558c0;
-  --channel-google: #2a5fc4;
-  --channel-seo: #3d4f1c;
+  --radius-card: 12px;
+  --shadow-card:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 4px 24px rgba(0, 0, 0, 0.4);
+
+  --wash: var(--tint);
+  --mint-line: color-mix(in srgb, var(--mint) 40%, transparent);
+  --rule-w: 1px;
+  --rule-style: solid;
+  --row-ring: color-mix(in srgb, var(--mint) 15%, transparent);
+  /* The viewport scrollbar belongs to :root itself, so its colours are tokens and not a skin rule. */
+  --scroll-thumb: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  --scroll-thumb-hover: color-mix(in srgb, var(--text-primary) 22%, transparent);
+
+  /* The name is historical: 13 files read it. It holds the display face of the skin or project. */
+  --font-outfit: var(--face-outfit);
 }
 
 * {
@@ -46,17 +55,11 @@
 }
 
 body {
-  background: #eae3d2 url("/d3a-code/ground-linen.webp") repeat;
-  background-size: 520px;
+  background: var(--bg-deep);
   color: var(--text-primary);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-:focus-visible {
-  outline: 3px solid var(--thread-scarlet);
-  outline-offset: 2px;
 }
 
 ::-webkit-scrollbar {
@@ -69,12 +72,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(43, 38, 34, 0.22);
+  background: var(--scroll-thumb);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(43, 38, 34, 0.36);
+  background: var(--scroll-thumb-hover);
 }
 
 .main-content {
@@ -83,10 +86,57 @@ body {
   min-height: 100vh;
 }
 
-.kanban-column {
-  border: 1.5px dashed var(--border);
-  border-radius: 14px;
-  min-height: 200px;
+.sidebar {
+  width: 240px;
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  padding: 20px 0 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-inter), Inter, sans-serif;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.wordmark { width: 100%; user-select: none; }
+
+.kanban-column { min-height: 200px; }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: var(--font-inter), Inter, sans-serif;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pill:disabled { cursor: not-allowed; opacity: 0.6; }
+
+.felt-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.felt-swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
 }
 
 /* Data table */
@@ -106,7 +156,7 @@ body {
   color: var(--text-muted);
   padding: 10px 12px;
   text-align: left;
-  border-bottom: 1.5px dashed var(--border);
+  border-bottom: var(--rule-w) var(--rule-style) var(--border);
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
@@ -121,7 +171,7 @@ body {
 }
 
 .data-table tbody tr:nth-child(even) {
-  background: rgba(43, 38, 34, 0.035);
+  background: color-mix(in srgb, var(--text-primary) 3.5%, transparent);
 }
 
 .data-table tbody tr:hover {
@@ -130,14 +180,14 @@ body {
 
 .data-table tbody tr.clickable-row:hover {
   background: var(--glow-mint);
-  outline: 1.5px dashed var(--thread-olive);
+  outline: var(--rule-w) var(--rule-style) var(--row-ring);
   outline-offset: -2px;
 }
 
 .data-table tbody td {
   padding: 10px 12px;
   color: var(--text-primary);
-  border-bottom: 1px dashed rgba(203, 191, 160, 0.6);
+  border-bottom: 1px var(--rule-style) color-mix(in srgb, var(--border) 60%, transparent);
   white-space: nowrap;
 }
 
@@ -150,7 +200,7 @@ body {
 /* Chart tooltip */
 .chart-tooltip {
   background: var(--bg-card) !important;
-  border: 1.5px dashed var(--border) !important;
+  border: var(--rule-w) var(--rule-style) var(--border) !important;
   border-radius: 10px !important;
   box-shadow: 0 6px 14px var(--lift) !important;
   padding: 10px 14px !important;
@@ -172,7 +222,7 @@ body {
 
 /* Empty state placeholder */
 .empty-state {
-  border: 1.5px dashed var(--border);
+  border: var(--rule-w) dashed var(--border);
   border-radius: 12px;
   padding: 32px;
   display: flex;
@@ -191,6 +241,12 @@ body {
   font-family: var(--font-mono), monospace;
   font-size: 11px;
   color: var(--text-muted);
+}
+
+/* Keyframes cannot nest in a skin block, so the flat skin's pulse sits here. It does nothing until a rule names it. */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 4px var(--glow-red); }
+  50% { box-shadow: 0 0 12px var(--glow-red), 0 0 24px var(--glow-red); }
 }
 
 /* Today page */
@@ -287,7 +343,7 @@ button.today-section-head:not(:disabled) { cursor: pointer; }
   max-width: 100%;
   padding: 2px 8px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--wash);
   font-family: var(--font-mono), monospace;
   font-size: 11px;
   color: var(--silver);
@@ -314,9 +370,9 @@ button.today-section-head:not(:disabled) { cursor: pointer; }
   transition: all 150ms;
 }
 
-.today-btn:hover:not(:disabled) { color: var(--text-primary); background: rgba(255, 255, 255, 0.05); }
+.today-btn:hover:not(:disabled) { color: var(--text-primary); background: var(--wash); }
 .today-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.today-btn-primary { color: var(--mint); border-color: rgba(16, 185, 129, 0.4); }
+.today-btn-primary { color: var(--mint); border-color: var(--mint-line); }
 .today-btn-link { color: var(--turquoise); }
 
 .today-error {
@@ -332,7 +388,7 @@ button.today-section-head:not(:disabled) { cursor: pointer; }
 
 .today-load-error { padding: 16px; margin-bottom: 24px; border-left: 3px solid var(--red); }
 
-/* Phone: the sidebar becomes a top strip, and the page uses the full width. */
+/* Phone: the sidebar becomes a top strip, and the page uses the full width. The skins set the strip's paint. */
 @media (max-width: 768px) {
   .app-shell { flex-direction: column !important; }
   .sidebar {
@@ -340,15 +396,12 @@ button.today-section-head:not(:disabled) { cursor: pointer; }
     width: 100%;
     height: auto;
     padding: 12px 0 0;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
   }
   .sidebar-logo { padding: 0 16px 10px !important; margin-bottom: 0 !important; border-bottom: 0 !important; }
   .sidebar-nav { display: flex !important; flex: none !important; overflow-x: auto !important; overflow-y: hidden !important; }
   .sidebar-nav > div { display: flex; }
   .sidebar-section-label, .sidebar-footer { display: none !important; }
-  .sidebar-item { padding: 10px 14px; white-space: nowrap; border-left: 0; border-bottom: 3px solid transparent; }
-  .sidebar-item.active { border-left-color: transparent; border-bottom-color: var(--mint); }
+  .sidebar-item { white-space: nowrap; }
   .main-content { margin-left: 0; padding: 16px; width: 100%; min-width: 0; }
   .today-section-hint { display: none; }
 }

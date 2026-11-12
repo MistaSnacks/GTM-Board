@@ -1,0 +1,156 @@
+/*
+ * The flat skin: the board as it was before d3a. Cards, badges and pills are plain boxes that read the palette tokens.
+ * Every rule sits in the one block below, so nothing here reaches the d3a skin.
+ */
+:root[data-skin="flat"] {
+  & :focus-visible {
+    outline: 2px solid var(--mint);
+    outline-offset: 2px;
+  }
+
+  /* ---------- the material names map to one ink ----------
+     The class names stay from the d3a kit. Here each names a token, and the rules below read --ink. */
+  .pill-tan, .felt-tile--cream { --ink: var(--text-muted); }
+  .pill-mustard, .badge-pending, .felt-tile--mustard { --ink: var(--amber); }
+  .pill-scarlet, .badge-critical, .felt-tile--scarlet { --ink: var(--red); }
+  .pill-denim, .badge-denim, .felt-tile--denim { --ink: var(--turquoise); }
+  .pill-olive, .badge-active, .felt-tile--olive { --ink: var(--mint); }
+  .pill-charcoal, .badge-ink, .felt-tile--charcoal { --ink: var(--text-primary); }
+  .badge-stable { --ink: var(--silver); }
+
+  /* The ink on its own tint falls under 4.5:1 for most inks, so the text takes a quarter of the primary text colour. */
+  .badge, .pill, .felt-tile { --ink-text: color-mix(in srgb, var(--ink) 75%, var(--text-primary)); }
+
+  /* ---------- cards ----------
+     A card shows its channel or priority as a left edge, which the component hands over as --card-accent. */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    color: var(--text-primary);
+  }
+  .card.piece-sm { border-left: 3px solid var(--card-accent, var(--border)); }
+  .card.piece-sm.is-lifted { box-shadow: 0 8px 24px var(--lift), 0 0 0 1px var(--mint); }
+  .card.piece-lg {
+    border-left: 4px solid var(--card-accent, var(--border));
+    box-shadow: 0 24px 60px var(--lift);
+  }
+
+  .kanban-column {
+    background: color-mix(in srgb, var(--tint) 50%, transparent);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+  }
+
+  /* ---------- status badges ---------- */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 6px;
+    font-family: var(--font-inter), Inter, sans-serif; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap;
+    color: var(--ink-text);
+    background: color-mix(in srgb, var(--ink) 14%, transparent);
+  }
+  .badge-stable { background: var(--tint); }
+  .badge-critical { animation: pulse-glow 2s ease-in-out infinite; }
+
+  /* ---------- pills: buttons, selects and column heads ---------- */
+  .pill {
+    height: var(--pill-h, 28px); padding: 0 12px;
+    border: 1px solid color-mix(in srgb, var(--ink) 35%, transparent); border-radius: 8px;
+    background: color-mix(in srgb, var(--ink) 12%, transparent);
+    color: var(--ink-text);
+    font-size: 12px; font-weight: 700;
+    transition: background 150ms;
+  }
+  :is(button, select).pill:not(:disabled):hover { background: color-mix(in srgb, var(--ink) 22%, transparent); }
+
+  select.pill {
+    appearance: none; -webkit-appearance: none;
+    padding-right: 28px;
+    text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--ink) 50%),
+      linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+    background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+  }
+  select.pill option { color: var(--text-primary); background: var(--bg-card); }
+
+  /* a column's name and count, with a dot in the column's ink */
+  .column-head {
+    height: auto; padding: 0; border: 0; background: none;
+    justify-content: flex-start; gap: 8px; margin-bottom: 12px;
+    color: var(--text-muted); cursor: default;
+    font-family: var(--font-mono), monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .column-head::before { content: ""; width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--ink); }
+  .column-head__count {
+    padding: 2px 8px; border-radius: 9999px;
+    background: var(--bg-card-raised); color: var(--text-muted);
+    font-family: var(--font-mono), monospace; font-size: 11px; font-weight: 600; letter-spacing: 0;
+  }
+
+  /* ---------- tiles ---------- */
+  .felt-tile {
+    border: 1px solid color-mix(in srgb, var(--ink) 40%, transparent); border-radius: 8px;
+    background: color-mix(in srgb, var(--ink) 15%, transparent);
+    color: var(--ink-text);
+  }
+  .felt-tile--cream { background: var(--bg-card-raised); border-color: var(--border); }
+
+  /* the card's left edge already shows the channel */
+  .felt-swatch { display: none; }
+
+  /* ---------- sidebar ---------- */
+  .sidebar {
+    background: var(--bg-deep);
+    border-right: 1px solid var(--border);
+  }
+  .sidebar-logo { padding: 0 20px 20px; margin-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .sidebar-footer { border-top: 1px solid var(--border); }
+
+  .wordmark {
+    display: block;
+    font-family: var(--font-outfit), sans-serif; font-size: 22px; font-weight: 700; letter-spacing: -0.02em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+  }
+  .wordmark-accent { color: var(--mint); }
+
+  .sidebar-item {
+    padding: 10px 20px;
+    border-left: 3px solid transparent;
+    font-size: 13px; font-weight: 500;
+    transition: all 150ms;
+  }
+  .sidebar-item:hover { color: var(--text-primary); background: var(--tint); }
+  .sidebar-item.active {
+    color: var(--mint);
+    background: color-mix(in srgb, var(--mint) 6%, transparent);
+    border-left-color: var(--mint);
+  }
+
+  .sidebar-section-label {
+    padding: 20px 20px 6px;
+    font-family: var(--font-inter), Inter, sans-serif; font-size: 10px; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  /* On a phone the active item is marked under the label, as a strip has no left edge to mark. */
+  @media (max-width: 768px) {
+    .sidebar { border-right: 0; border-bottom: 1px solid var(--border); }
+    .sidebar-item { padding: 10px 14px; border-left: 0; border-bottom: 3px solid transparent; }
+    .sidebar-item.active { border-bottom-color: var(--mint); }
+  }
+
+  /* ---------- modal ---------- */
+  .craft-backdrop {
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+}

@@ -253,6 +253,7 @@ export default function CardDetailModal({
               width: "100%",
               maxWidth: "560px",
               maxHeight: "85vh",
+              "--card-accent": channelColorMap[card.channel],
               display: "flex",
               flexDirection: "column",
               padding: "14px",

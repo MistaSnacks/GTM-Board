@@ -1,15 +1,16 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { supabase } from "./supabase";
 import type { ProjectConfig } from "./types";
 
-export async function getProjects(): Promise<string[]> {
+export const getProjects = cache(async (): Promise<string[]> => {
   const { data, error } = await supabase
     .from("gtm_projects")
     .select("slug");
 
   if (error || !data) return [];
   return data.map((row) => row.slug);
-}
+});
 
 export async function getActiveProject(): Promise<string> {
   const projects = await getProjects();

@@ -1,0 +1,42 @@
+/* GroomLocal's own palette and display face, from its site and its admin rail. It sets tokens only. */
+:root[data-project="groomlocal"] {
+  --bg-deep: #FDF8F0;
+  --bg-card: #FFFFFF;
+  --bg-card-raised: #F7F2E9;
+  --text-primary: #1E293B;
+  --text-muted: #5B6777;
+  --silver: #475569;
+  --border: #E8DDD4;
+  --mint: #0E7C73;
+  --turquoise: #1F6AC4;
+  --amber: #9A6500;
+  --red: #C4452E;
+  --tint: rgba(30, 41, 59, 0.05);
+  --lift: rgba(30, 41, 59, 0.08);
+  --glow-mint: rgba(78, 205, 196, 0.18);
+  --glow-red: rgba(196, 69, 46, 0.12);
+  --glow-amber: rgba(201, 133, 0, 0.14);
+
+  --channel-reddit: #a8300b;
+  --channel-linkedin: #0a5aad;
+  --channel-meta: #1558c0;
+  --channel-google: #2a5fc4;
+  --channel-seo: #0E7C73;
+
+  --radius-card: 16px;
+  --shadow-card: 0 4px 20px rgba(30, 41, 59, 0.06);
+
+  --font-outfit: var(--face-fredoka);
+}
+
+/* The rail is dark, so it sets the tokens again for everything inside it. */
+:root[data-project="groomlocal"] .sidebar {
+  --bg-deep: #0F172A;
+  --bg-card: #1E293B;
+  --text-primary: #F8FAFC;
+  --text-muted: #94A3B8;
+  --border: rgba(255, 255, 255, 0.1);
+  --mint: #4ECDC4;
+  --turquoise: #4ECDC4;
+  --tint: rgba(255, 255, 255, 0.06);
+}

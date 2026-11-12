@@ -80,6 +80,7 @@ export default function KanbanCard({ card, index, onCardClick }: KanbanCardProps
           onClick={() => onCardClick?.(card)}
           style={{
             ...provided.draggableProps.style,
+            "--card-accent": channelColor,
             padding: "13px 14px",
             marginBottom: "8px",
             cursor: "pointer",

@@ -1,209 +1,257 @@
 /*
  * The d3a "Threading the Needle" craft layer for the board. Every cloth is a code-built piece from the TAILOR kit
  * (public/d3a-code, copied by scripts/sync-d3a-assets.sh). No cloth is drawn in CSS.
+ * Every rule sits in the one block below, so nothing here reaches the flat skin.
  */
+:root[data-skin="d3a"] {
+  /* The token names are from the first dark theme, and every component reads them. They hold the inks that the d3a kit
+     measures on the cream cloth and the linen ground (4.5:1 or more on the lightest and darkest fibre):
+     --mint is the olive ink (good), --amber the mustard ink (warning), --red the action red (bad),
+     --turquoise the denim ink. A coloured patch sets its own inks (.cloth-* below). */
+  --bg-deep: #eae3d2;
+  --bg-card: #efe7d5;
+  --bg-card-raised: #e0d5bb;
+  --mint: #3d4f1c;
+  --turquoise: #27396a;
+  --amber: #5c3f00;
+  --red: #8a2318;
+  --silver: #4a4235;
+  --text-primary: #2b2622;
+  --text-muted: #4a4235;
+  --border: #cbbfa0;
+  --tint: rgba(43, 38, 34, 0.06);
+  --glow-mint: rgba(61, 79, 28, 0.14);
+  --glow-red: rgba(138, 35, 24, 0.12);
+  --glow-amber: rgba(92, 63, 0, 0.12);
+  --lift: rgba(45, 32, 20, 0.24);
 
-/* ---------- type ---------- */
-.d3a-display { font-family: var(--font-outfit), Georgia, serif; font-weight: 600; letter-spacing: -0.018em; }
-.d3a-script { font-family: var(--font-hand), cursive; font-weight: 600; }
+  --thread-denim: #27396a;
+  --thread-olive: #55632f;
+  --thread-mustard: #b97f0f;
+  --thread-terracotta: #b2431d;
+  --thread-scarlet: #a32e22;
 
-/* ---------- patches ----------
-   The cloth is a layer under the card's content, so a card keeps the box and padding it had. The stitches take
-   about the outer third of the 26 px band. */
-.card {
-  position: relative;
-  isolation: isolate;
-  background: transparent !important;
-  border-color: transparent !important;
-  color: var(--text-primary);
-}
-.card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  border: 26px solid transparent;
-  border-image: url("/d3a-code/patch-cream.webp") 48 fill / 26px / 0 round;
-  filter: drop-shadow(0 6px 10px var(--lift));
-}
+  --channel-reddit: #a8300b;
+  --channel-linkedin: #0a5aad;
+  --channel-meta: #1558c0;
+  --channel-google: #2a5fc4;
+  --channel-seo: #3d4f1c;
 
-/* a small piece: kanban cards and other cards with 12 px of padding */
-.card.piece-sm::before { border-width: 18px; border-image-width: 18px; filter: drop-shadow(0 3px 5px var(--lift)); }
-.card.piece-sm.is-lifted::before { filter: drop-shadow(0 12px 16px rgba(45, 32, 20, 0.4)); }
-@media (prefers-reduced-motion: no-preference) {
-  .card.piece-sm::before { transition: filter 0.15s ease; }
-}
+  --rule-w: 1.5px;
+  --rule-style: dashed;
+  --row-ring: var(--thread-olive);
+  --scroll-thumb: rgba(43, 38, 34, 0.22);
+  --scroll-thumb-hover: rgba(43, 38, 34, 0.36);
 
-/* A coloured patch carries its own inks. Olive and mustard hold one ink only at 4.5:1, so on them the good,
-   warning and bad colours are that ink, and the arrow or the badge says which it is. */
-.cloth-denim {
-  --text-primary: #f4eedf; --text-muted: #e4ddcb;
-  --mint: #cfe3a1; --amber: #f2c14e; --red: #ffc4b5; --turquoise: #f4eedf;
-  --bg-card: #152943; --bg-card-raised: rgba(0, 0, 0, 0.26); --border: rgba(244, 238, 223, 0.3); --tint: rgba(0, 0, 0, 0.16);
-}
-.cloth-olive {
-  --text-primary: #fff; --text-muted: #fff;
-  --mint: #fff; --amber: #fff; --red: #fff; --turquoise: #fff;
-  --bg-card: #4b5433; --bg-card-raised: rgba(0, 0, 0, 0.22); --border: rgba(255, 255, 255, 0.36); --tint: rgba(0, 0, 0, 0.14);
-}
-.cloth-mustard {
-  --text-primary: #251a05; --text-muted: #251a05;
-  --mint: #251a05; --amber: #251a05; --red: #251a05; --turquoise: #251a05;
-  --bg-card: #cc921c; --bg-card-raised: rgba(255, 255, 255, 0.32); --border: rgba(37, 26, 5, 0.32); --tint: rgba(255, 255, 255, 0.2);
-}
-/* a channel's own colour has no measured contrast on a coloured patch, so there it is the patch's ink */
-:is(.cloth-denim, .cloth-olive, .cloth-mustard) {
-  --channel-reddit: var(--text-primary); --channel-linkedin: var(--text-primary); --channel-meta: var(--text-primary);
-  --channel-google: var(--text-primary); --channel-seo: var(--text-primary);
-}
-.card.cloth-denim::before { border-image-source: url("/d3a-code/patch-denim.webp"); border-image-slice: 50 fill; }
-.card.cloth-olive::before { border-image-source: url("/d3a-code/patch-olive.webp"); border-image-slice: 50 fill; }
-.card.cloth-mustard::before { border-image-source: url("/d3a-code/patch-mustard.webp"); border-image-slice: 52 fill; }
+  --font-outfit: var(--face-fraunces);
 
-/* ---------- felt pills ----------
-   Caps paint in the border, cloth and thread between them. The border-inline width is half the height. */
-.pill {
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  height: 32px; border: 0 solid transparent; border-width: 0 16px; padding: 0 2px;
-  font-family: var(--font-inter), Inter, sans-serif; font-size: 12px; font-weight: 700; line-height: 1;
-  white-space: nowrap; cursor: pointer;
-  filter: drop-shadow(0 3px 5px var(--lift));
-}
-.pill:disabled { cursor: not-allowed; opacity: 0.6; }
-@media (prefers-reduced-motion: no-preference) {
-  .pill { transition: filter 0.15s ease, transform 0.15s ease; }
-  .pill:not(:disabled):hover { transform: translateY(-1px); filter: drop-shadow(0 6px 8px rgba(45, 32, 20, 0.34)); }
-}
-.pill-tan { background: var(--pill-tan); color: #2e2209; }
-.pill-denim { background: var(--pill-denim); color: #f4eedf; }
-.pill-olive { background: var(--pill-olive); color: #fff; }
-.pill-mustard { background: var(--pill-mustard); color: #251a05; }
-.pill-scarlet { background: var(--pill-scarlet); color: #fff; }
-.pill-charcoal { background: var(--pill-charcoal); color: #f4eedf; }
+  & body {
+    background: #eae3d2 url("/d3a-code/ground-linen.webp") repeat;
+    background-size: 520px;
+  }
 
-/* a select drawn as a pill: the native arrow is replaced by a chevron in the pill's ink */
-select.pill {
-  appearance: none; -webkit-appearance: none; outline-offset: 3px;
-  text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px;
-}
+  & :focus-visible {
+    outline: 3px solid var(--thread-scarlet);
+    outline-offset: 2px;
+  }
 
-/* status badges: a small pill, not a control */
-.badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  height: 22px; border: 0 solid transparent; border-width: 0 11px; padding: 0 1px;
-  font-family: var(--font-inter), Inter, sans-serif; font-size: 10.5px; font-weight: 700; line-height: 1;
-  letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap;
-  filter: drop-shadow(0 2px 3px var(--lift));
-  --mint: currentColor; --red: currentColor;
-}
-.badge-active { background: var(--pill-olive); color: #fff; }
-.badge-critical { background: var(--pill-scarlet); color: #fff; }
-.badge-pending { background: var(--pill-mustard); color: #251a05; }
-.badge-stable { background: var(--pill-tan); color: #2e2209; }
-.badge-ink { background: var(--pill-charcoal); color: #f4eedf; }
-.badge-denim { background: var(--pill-denim); color: #f4eedf; }
+  /* ---------- patches ----------
+     The cloth is a layer under the card's content, so a card keeps the box and padding it had. The stitches take
+     about the outer third of the 26 px band. */
+  .card {
+    position: relative;
+    isolation: isolate;
+    background: transparent !important;
+    border-color: transparent !important;
+    color: var(--text-primary);
+  }
+  .card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    border: 26px solid transparent;
+    border-image: url("/d3a-code/patch-cream.webp") 48 fill / 26px / 0 round;
+    filter: drop-shadow(0 6px 10px var(--lift));
+  }
 
-/* ---------- sewn cloth label (the wordmark sits on it) ---------- */
-.d3a-label {
-  display: inline-flex; align-items: center; justify-content: center;
-  border-style: solid; border-width: 14px 20px;
-  border-image: url("/d3a-code/label-cream.webp") 44 fill / 16px 22px / 0 round;
-  color: #2b2622;
-  filter: drop-shadow(0 4px 7px var(--lift));
-}
+  /* a small piece: kanban cards and other cards with 12 px of padding */
+  .card.piece-sm::before { border-width: 18px; border-image-width: 18px; filter: drop-shadow(0 3px 5px var(--lift)); }
+  .card.piece-sm.is-lifted::before { filter: drop-shadow(0 12px 16px rgba(45, 32, 20, 0.4)); }
+  @media (prefers-reduced-motion: no-preference) {
+    .card.piece-sm::before { transition: filter 0.15s ease; }
+  }
 
-/* ---------- felt icon tiles ---------- */
-.felt-tile {
-  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-  border-radius: 9px; background-size: 300%; background-position: center;
-  font-weight: 700;
-  box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.2),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.28),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.14),
-    0 2px 4px rgba(45, 32, 20, 0.32);
-}
-.felt-tile--scarlet { background-image: url("/d3a-code/tex-scarlet.webp"); background-size: cover; color: #fff; }
-.felt-tile--denim { background-image: url("/d3a-code/patch-denim.webp"); color: #f4eedf; }
-.felt-tile--olive { background-image: url("/d3a-code/patch-olive.webp"); color: #fff; }
-.felt-tile--mustard { background-image: url("/d3a-code/patch-mustard.webp"); color: #251a05; }
-.felt-tile--cream { background-image: url("/d3a-code/patch-cream.webp"); color: #2b2622; }
-.felt-tile--charcoal { background-image: url("/d3a-code/pills/charcoal-cloth.webp"); background-size: cover; color: #f4eedf; }
+  /* A coloured patch carries its own inks. Olive and mustard hold one ink only at 4.5:1, so on them the good,
+     warning and bad colours are that ink, and the arrow or the badge says which it is. */
+  .cloth-denim {
+    --text-primary: #f4eedf; --text-muted: #e4ddcb;
+    --mint: #cfe3a1; --amber: #f2c14e; --red: #ffc4b5; --turquoise: #f4eedf;
+    --bg-card: #152943; --bg-card-raised: rgba(0, 0, 0, 0.26); --border: rgba(244, 238, 223, 0.3); --tint: rgba(0, 0, 0, 0.16);
+  }
+  .cloth-olive {
+    --text-primary: #fff; --text-muted: #fff;
+    --mint: #fff; --amber: #fff; --red: #fff; --turquoise: #fff;
+    --bg-card: #4b5433; --bg-card-raised: rgba(0, 0, 0, 0.22); --border: rgba(255, 255, 255, 0.36); --tint: rgba(0, 0, 0, 0.14);
+  }
+  .cloth-mustard {
+    --text-primary: #251a05; --text-muted: #251a05;
+    --mint: #251a05; --amber: #251a05; --red: #251a05; --turquoise: #251a05;
+    --bg-card: #cc921c; --bg-card-raised: rgba(255, 255, 255, 0.32); --border: rgba(37, 26, 5, 0.32); --tint: rgba(255, 255, 255, 0.2);
+  }
+  /* a channel's own colour has no measured contrast on a coloured patch, so there it is the patch's ink */
+  :is(.cloth-denim, .cloth-olive, .cloth-mustard) {
+    --channel-reddit: var(--text-primary); --channel-linkedin: var(--text-primary); --channel-meta: var(--text-primary);
+    --channel-google: var(--text-primary); --channel-seo: var(--text-primary);
+  }
+  .card.cloth-denim::before { border-image-source: url("/d3a-code/patch-denim.webp"); border-image-slice: 50 fill; }
+  .card.cloth-olive::before { border-image-source: url("/d3a-code/patch-olive.webp"); border-image-slice: 50 fill; }
+  .card.cloth-mustard::before { border-image-source: url("/d3a-code/patch-mustard.webp"); border-image-slice: 52 fill; }
 
-/* a small felt square that marks a card's channel */
-.felt-swatch {
-  display: inline-block; width: 9px; height: 9px; flex-shrink: 0; border-radius: 2.5px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    inset 0 -1.5px 2px rgba(0, 0, 0, 0.22),
-    0 1px 2px rgba(45, 32, 20, 0.34);
-}
+  /* ---------- felt pills ----------
+     Caps paint in the border, cloth and thread between them. The border-inline width is half the height. */
+  .pill {
+    height: var(--pill-h, 32px); border: 0 solid transparent; border-width: 0 calc(var(--pill-h, 32px) / 2); padding: 0 2px;
+    font-size: 12px; font-weight: 700;
+    filter: drop-shadow(0 3px 5px var(--lift));
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .pill { transition: filter 0.15s ease, transform 0.15s ease; }
+    .pill:not(:disabled):hover { transform: translateY(-1px); filter: drop-shadow(0 6px 8px rgba(45, 32, 20, 0.34)); }
+  }
+  .pill-tan { background: var(--pill-tan); color: #2e2209; }
+  .pill-denim { background: var(--pill-denim); color: #f4eedf; }
+  .pill-olive { background: var(--pill-olive); color: #fff; }
+  .pill-mustard { background: var(--pill-mustard); color: #251a05; }
+  .pill-scarlet { background: var(--pill-scarlet); color: #fff; }
+  .pill-charcoal { background: var(--pill-charcoal); color: #f4eedf; }
 
-/* ---------- sidebar: a linen panel seamed to the page with a dashed stitch ---------- */
-.sidebar {
-  width: 240px;
-  height: 100vh;
-  position: fixed;
-  left: 0;
-  top: 0;
-  padding: 20px 0 0;
-  display: flex;
-  flex-direction: column;
-  z-index: 50;
-  background: #eae3d2 url("/d3a-code/ground-linen.webp") repeat;
-  background-size: 520px;
-  border-right: 2px dashed var(--border);
-  box-shadow: 10px 0 34px rgba(45, 32, 20, 0.18), 2px 0 6px rgba(45, 32, 20, 0.1);
-}
+  /* a select drawn as a pill: the native arrow is replaced by a chevron in the pill's ink */
+  select.pill {
+    appearance: none; -webkit-appearance: none; outline-offset: 3px;
+    text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px;
+  }
 
-.sidebar-item {
-  display: flex; align-items: center; gap: 12px;
-  height: 40px; margin: 2px 12px; padding: 0;
-  border: 0 solid transparent; border-width: 0 20px;
-  color: var(--text-muted);
-  font-family: var(--font-inter), Inter, sans-serif; font-size: 14px; font-weight: 600;
-  cursor: pointer; text-decoration: none;
-}
-.sidebar-item:hover { background: var(--pill-tan); color: #2e2209; }
-.sidebar-item.active,
-.sidebar-item.active:hover {
-  background: var(--pill-denim); color: #f4eedf; font-weight: 700;
-  filter: drop-shadow(0 4px 7px rgba(30, 44, 74, 0.28));
-}
+  /* status badges: a small pill, not a control */
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    height: 22px; border: 0 solid transparent; border-width: 0 11px; padding: 0 1px;
+    font-family: var(--font-inter), Inter, sans-serif; font-size: 10.5px; font-weight: 700; line-height: 1;
+    letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap;
+    filter: drop-shadow(0 2px 3px var(--lift));
+    --mint: currentColor; --red: currentColor;
+  }
+  .badge-active { background: var(--pill-olive); color: #fff; }
+  .badge-critical { background: var(--pill-scarlet); color: #fff; }
+  .badge-pending { background: var(--pill-mustard); color: #251a05; }
+  .badge-stable { background: var(--pill-tan); color: #2e2209; }
+  .badge-ink { background: var(--pill-charcoal); color: #f4eedf; }
+  .badge-denim { background: var(--pill-denim); color: #f4eedf; }
 
-.sidebar-section-label {
-  padding: 14px 32px 2px;
-  font-family: var(--font-hand), cursive; font-size: 19px; font-weight: 600; line-height: 1.1;
-  text-transform: lowercase;
-  color: var(--red);
-}
+  /* ---------- the wordmark: a sewn cloth label with the name in serif and script ---------- */
+  .sidebar-logo { padding: 0 16px 12px; }
+  .wordmark {
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+    border-style: solid; border-width: 14px 20px;
+    border-image: url("/d3a-code/label-cream.webp") 44 fill / 16px 22px / 0 round;
+    font-family: var(--font-outfit), Georgia, serif; font-size: 21px; font-weight: 600; letter-spacing: -0.018em;
+    color: #2b2622;
+    filter: drop-shadow(0 4px 7px var(--lift));
+  }
+  .wordmark-accent { font-family: var(--font-hand), cursive; font-size: 25px; font-weight: 600; line-height: 1; color: var(--red); }
 
-/* ---------- modal: dimmed warm cloth behind a cream patch ---------- */
-.craft-backdrop {
-  background: rgba(38, 27, 14, 0.52) url("/d3a-code/ground-linen.webp");
-  background-size: 620px;
-  background-blend-mode: multiply;
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
-}
-.card.piece-lg::before { border-width: 30px; border-image-width: 30px; filter: drop-shadow(0 26px 52px rgba(18, 12, 5, 0.5)); }
+  /* ---------- felt icon tiles ---------- */
+  .felt-tile {
+    border-radius: 9px; background-size: 300%; background-position: center;
+    box-shadow:
+      inset 0 1.5px 0 rgba(255, 255, 255, 0.2),
+      inset 0 -2px 4px rgba(0, 0, 0, 0.28),
+      inset 0 0 0 1px rgba(0, 0, 0, 0.14),
+      0 2px 4px rgba(45, 32, 20, 0.32);
+  }
+  .felt-tile--scarlet { background-image: url("/d3a-code/tex-scarlet.webp"); background-size: cover; color: #fff; }
+  .felt-tile--denim { background-image: url("/d3a-code/patch-denim.webp"); color: #f4eedf; }
+  .felt-tile--olive { background-image: url("/d3a-code/patch-olive.webp"); color: #fff; }
+  .felt-tile--mustard { background-image: url("/d3a-code/patch-mustard.webp"); color: #251a05; }
+  .felt-tile--cream { background-image: url("/d3a-code/patch-cream.webp"); color: #2b2622; }
+  .felt-tile--charcoal { background-image: url("/d3a-code/pills/charcoal-cloth.webp"); background-size: cover; color: #f4eedf; }
 
-/* a select keeps a chevron in the ink of its pill */
-select.pill { padding-right: 14px; }
-select.pill-tan {
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5l3 3 3-3' stroke='%232e2209' fill='none' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") right center / 11px no-repeat padding-box,
-    var(--pill-tan);
-}
-select.pill-denim {
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5l3 3 3-3' stroke='%23f4eedf' fill='none' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") right center / 11px no-repeat padding-box,
-    var(--pill-denim);
-}
-/* the open list is drawn by the system, so its rows take the cream cloth's ink */
-select.pill option { color: #2b2622; background: #efe7d5; }
+  /* a small felt square that marks a card's channel */
+  .felt-swatch {
+    border-radius: 2.5px;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      inset 0 -1.5px 2px rgba(0, 0, 0, 0.22),
+      0 1px 2px rgba(45, 32, 20, 0.34);
+  }
 
-/* a column's name and count on a felt pill in the column's colour */
-.column-head { height: 28px; border-width: 0 14px; font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; cursor: default; margin-bottom: 12px; }
-.column-head__count { font-family: var(--font-mono), monospace; font-weight: 600; opacity: 1; padding-left: 2px; }
+  /* ---------- sidebar: a linen panel seamed to the page with a dashed stitch ---------- */
+  .sidebar {
+    background: #eae3d2 url("/d3a-code/ground-linen.webp") repeat;
+    background-size: 520px;
+    border-right: 2px dashed var(--border);
+    box-shadow: 10px 0 34px rgba(45, 32, 20, 0.18), 2px 0 6px rgba(45, 32, 20, 0.1);
+  }
+  .sidebar-footer { border-top: 2px dashed var(--border); }
+
+  .sidebar-item {
+    height: 40px; margin: 2px 12px; padding: 0;
+    border: 0 solid transparent; border-width: 0 20px;
+    font-size: 14px; font-weight: 600;
+  }
+  .sidebar-item:hover { background: var(--pill-tan); color: #2e2209; }
+  .sidebar-item.active,
+  .sidebar-item.active:hover {
+    background: var(--pill-denim); color: #f4eedf; font-weight: 700;
+    filter: drop-shadow(0 4px 7px rgba(30, 44, 74, 0.28));
+  }
+
+  .sidebar-section-label {
+    padding: 14px 32px 2px;
+    font-family: var(--font-hand), cursive; font-size: 19px; font-weight: 600; line-height: 1.1;
+    text-transform: lowercase;
+    color: var(--red);
+  }
+
+  /* On a phone the pill keeps both caps, so the active item is drawn whole. */
+  @media (max-width: 768px) {
+    .sidebar { border-right: 0; border-bottom: 1px solid var(--border); }
+    .sidebar-item { padding: 10px 14px; }
+  }
+
+  /* ---------- the stitched column ---------- */
+  .kanban-column {
+    border: 1.5px dashed var(--border);
+    border-radius: 14px;
+  }
+
+  /* ---------- modal: dimmed warm cloth behind a cream patch ---------- */
+  .craft-backdrop {
+    background: rgba(38, 27, 14, 0.52) url("/d3a-code/ground-linen.webp");
+    background-size: 620px;
+    background-blend-mode: multiply;
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+  }
+  .card.piece-lg::before { border-width: 30px; border-image-width: 30px; filter: drop-shadow(0 26px 52px rgba(18, 12, 5, 0.5)); }
+
+  /* a select keeps a chevron in the ink of its pill */
+  select.pill { padding-right: 14px; }
+  select.pill-tan {
+    background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5l3 3 3-3' stroke='%232e2209' fill='none' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") right center / 11px no-repeat padding-box,
+      var(--pill-tan);
+  }
+  select.pill-denim {
+    background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5l3 3 3-3' stroke='%23f4eedf' fill='none' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") right center / 11px no-repeat padding-box,
+      var(--pill-denim);
+  }
+  /* the open list is drawn by the system, so its rows take the cream cloth's ink */
+  select.pill option { color: #2b2622; background: #efe7d5; }
+
+  /* a column's name and count on a felt pill in the column's colour */
+  .column-head { height: 28px; border-width: 0 14px; font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; cursor: default; margin-bottom: 12px; }
+  .column-head__count { font-family: var(--font-mono), monospace; font-weight: 600; opacity: 1; padding-left: 2px; }
+}

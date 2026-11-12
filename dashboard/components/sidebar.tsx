@@ -225,15 +225,10 @@ export default function Sidebar({
   return (
     <nav className="sidebar">
       {/* Logo */}
-      <div className="sidebar-logo" style={{ padding: "0 16px 12px" }}>
-        <div
-          className="d3a-label d3a-display"
-          style={{ fontSize: "21px", gap: "5px", userSelect: "none", width: "100%" }}
-        >
+      <div className="sidebar-logo">
+        <div className="wordmark">
           <span>GTM</span>
-          <span className="d3a-script" style={{ color: "var(--red)", fontSize: "25px", lineHeight: 1 }}>
-            board
-          </span>
+          <span className="wordmark-accent">board</span>
         </div>
       </div>
 
@@ -270,7 +265,6 @@ export default function Sidebar({
         className="sidebar-footer"
         style={{
           padding: "14px 16px 16px",
-          borderTop: "2px dashed var(--border)",
           display: "flex",
           flexDirection: "column",
           gap: "10px",
@@ -281,7 +275,7 @@ export default function Sidebar({
           value={activeProject}
           onChange={(e) => onProjectChange?.(e.target.value)}
           className="pill pill-denim"
-          style={{ width: "100%", height: "36px", borderWidth: "0 18px" }}
+          style={{ width: "100%", "--pill-h": "36px" }}
         >
           {projects.map((project) => (
             <option key={project} value={project}>
@@ -296,7 +290,7 @@ export default function Sidebar({
             onClick={onRefresh}
             disabled={isRefreshing}
             className="pill pill-tan"
-            style={{ flex: 1, height: "30px", borderWidth: "0 15px", fontSize: "11px", letterSpacing: "0.04em" }}
+            style={{ flex: 1, "--pill-h": "30px", fontSize: "11px", letterSpacing: "0.04em" }}
           >
             <svg
               width="12"

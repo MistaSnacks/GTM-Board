@@ -2,11 +2,11 @@
 
 import type { AgentTaskData } from "@/lib/types";
 
-const priorityPiece: Record<AgentTaskData["priority"], { cloth: string; badge: string }> = {
-  critical: { cloth: "", badge: "badge-critical" },
-  high: { cloth: " cloth-mustard", badge: "badge-ink" },
-  medium: { cloth: " cloth-denim", badge: "badge-stable" },
-  low: { cloth: "", badge: "badge-stable" },
+const priorityPiece: Record<AgentTaskData["priority"], { cloth: string; badge: string; accent: string }> = {
+  critical: { cloth: "", badge: "badge-critical", accent: "var(--red)" },
+  high: { cloth: " cloth-mustard", badge: "badge-ink", accent: "var(--amber)" },
+  medium: { cloth: " cloth-denim", badge: "badge-stable", accent: "var(--turquoise)" },
+  low: { cloth: "", badge: "badge-stable", accent: "var(--text-muted)" },
 };
 
 interface AgentTaskCardProps {
@@ -21,6 +21,7 @@ export default function AgentTaskCard({ task, onClick }: AgentTaskCardProps) {
       className={`card piece-sm${priorityPiece[task.priority].cloth}`}
       onClick={onClick}
       style={{
+        "--card-accent": priorityPiece[task.priority].accent,
         padding: "13px 14px",
         marginBottom: "8px",
         cursor: onClick ? "pointer" : undefined,
