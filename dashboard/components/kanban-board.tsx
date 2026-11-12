@@ -54,7 +54,7 @@ export default function KanbanBoard({ board, project, onMoveCard }: KanbanBoardP
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(5, 1fr)",
+          gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
           gap: "12px",
         }}
       >
@@ -72,7 +72,7 @@ export default function KanbanBoard({ board, project, onMoveCard }: KanbanBoardP
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(5, 1fr)",
+          gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
           gap: "12px",
         }}
       >
