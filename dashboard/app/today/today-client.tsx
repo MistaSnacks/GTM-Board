@@ -3,16 +3,19 @@
 import { useState } from "react";
 import PageHeader from "@/components/page-header";
 import TodayItemRow from "@/components/today-item-row";
-import type { Item } from "../../../server/src/items/types.ts";
-import { ageLabel, buildSections, type SectionView } from "@/lib/today";
+import type { Item, Runner } from "../../../server/src/items/types.ts";
+import { ageLabel, buildSections, countWithAgents, type SectionView } from "@/lib/today";
 
 interface TodayClientProps {
   items: Item[];
+  /** Null when the runners could not be read. Rows then offer no send button. */
+  runners: Runner[] | null;
+  runnersError: string | null;
   loadError: string | null;
   nowIso: string;
 }
 
-function Section({ view, now, open, onToggle }: { view: SectionView; now: Date; open: boolean; onToggle: () => void }) {
+function Section({ view, now, runners, open, onToggle }: { view: SectionView; now: Date; runners: Runner[] | null; open: boolean; onToggle: () => void }) {
   const { def, count, groups } = view;
   const collapsible = def.collapsed === true;
   return (
@@ -29,7 +32,7 @@ function Section({ view, now, open, onToggle }: { view: SectionView; now: Date; 
             {group.label && <div className="today-group-label">{group.label}</div>}
             <div className="today-list">
               {group.items.map((item) => (
-                <TodayItemRow key={`${item.id}:${item.updated_at}`} item={item} now={now} showProject={def.id !== "seo"} />
+                <TodayItemRow key={`${item.id}:${item.updated_at}`} item={item} now={now} runners={runners} showProject={def.id !== "seo"} />
               ))}
             </div>
           </div>
@@ -38,7 +41,7 @@ function Section({ view, now, open, onToggle }: { view: SectionView; now: Date; 
   );
 }
 
-export default function TodayClient({ items, loadError, nowIso }: TodayClientProps) {
+export default function TodayClient({ items, runners, runnersError, loadError, nowIso }: TodayClientProps) {
   const now = new Date(nowIso);
   const [laterOpen, setLaterOpen] = useState(false);
   const sections = buildSections(items, now).filter((s) => s.count > 0);
@@ -48,9 +51,11 @@ export default function TodayClient({ items, loadError, nowIso }: TodayClientPro
     .filter((i) => i.source.startsWith("collector:"))
     .map((i) => Date.parse(i.last_seen_at))
     .sort((a, b) => b - a)[0];
+  const withAgents = countWithAgents(items);
   const subtitle = [
     `${items.length} open`,
     `${needsYou} need you now`,
+    withAgents > 0 ? `${withAgents} with agents` : null,
     collectorSeen ? `collectors last saw data ${ageLabel(new Date(collectorSeen).toISOString(), now)} ago` : null,
   ]
     .filter(Boolean)
@@ -70,6 +75,13 @@ export default function TodayClient({ items, loadError, nowIso }: TodayClientPro
         </div>
       )}
 
+      {runnersError && (
+        <div role="alert" className="card today-load-error">
+          <div className="today-title">Could not read the agents</div>
+          <div className="today-why">Sending an item to an agent is off until this works. {runnersError}</div>
+        </div>
+      )}
+
       {!loadError && items.length === 0 && (
         <div className="empty-state">
           <div>Nothing needs attention.</div>
@@ -78,7 +90,7 @@ export default function TodayClient({ items, loadError, nowIso }: TodayClientPro
       )}
 
       {sections.map((view) => (
-        <Section key={view.def.id} view={view} now={now} open={view.def.collapsed ? laterOpen : true} onToggle={() => setLaterOpen((v) => !v)} />
+        <Section key={view.def.id} view={view} now={now} runners={runners} open={view.def.collapsed ? laterOpen : true} onToggle={() => setLaterOpen((v) => !v)} />
       ))}
     </div>
   );

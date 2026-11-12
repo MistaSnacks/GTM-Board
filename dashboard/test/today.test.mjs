@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ACTION_PATCHES, ageLabel, buildSections, isItemAction, safeHref, sectionOf } from "../lib/today.ts";
+import { ACTION_PATCHES, agentView, ageLabel, buildSections, countWithAgents, isItemAction, safeHref, sectionOf } from "../lib/today.ts";
 
 const NOW = new Date("2026-11-07T02:30:00.000Z");
 
@@ -27,6 +27,11 @@ function item(over = {}) {
     updated_at: "2026-11-06T00:00:00.000Z",
     last_seen_at: "2026-11-06T00:00:00.000Z",
     closed_at: null,
+    delegated_to: null,
+    delegation_state: null,
+    delegation_ref: null,
+    delegation_note: null,
+    delegated_at: null,
     ...over,
   };
 }
@@ -110,4 +115,83 @@ test("ageLabel gives minutes, hours, then days", () => {
   assert.equal(ageLabel(ago(47 * 3_600_000), NOW), "47h");
   assert.equal(ageLabel(ago(72 * 3_600_000), NOW), "3d");
   assert.equal(ageLabel(ago(-1000), NOW), "0m");
+});
+
+const AT = "2026-11-07T02:00:00.000Z";
+const delegated = (state, over = {}) =>
+  item({ project: "tailor", delegated_to: "hermes-mac", delegation_state: state, delegated_at: AT, ...over });
+const runner = (over = {}) => ({ name: "hermes-mac", label: "Hermes", projects: ["tailor"], last_seen_at: "2026-11-07T02:29:00.000Z", ...over });
+
+test("an item with an agent never lands in Needs you now, whatever its owner and priority", () => {
+  for (const state of ["queued", "running", "returned", "failed"]) {
+    assert.equal(sectionOf(delegated(state, { owner: "camren", priority: 0 }), NOW), "agents", state);
+  }
+  assert.equal(sectionOf(delegated("done", { owner: "camren", priority: 0 }), NOW), "now");
+  assert.equal(sectionOf(delegated("queued", { kind: "seo_task", priority: 3 }), NOW), "agents");
+});
+
+test("the page counts the items that wait on an agent: queued and running", () => {
+  const items = ["queued", "running", "returned", "failed", "done"].map((s) => delegated(s)).concat(item());
+  assert.equal(countWithAgents(items), 2);
+});
+
+test("a row with no delegation: ready sends, offline is disabled with the last check-in, unserved names the project", () => {
+  const ready = agentView(item({ project: "tailor" }), [runner()], NOW);
+  assert.deepEqual(ready.send, { label: "Send to Hermes", enabled: true, title: "Send this item to Hermes" });
+  assert.equal(ready.badge, null);
+  assert.equal(ready.canRecall, false);
+
+  const offline = agentView(item({ project: "tailor" }), [runner({ last_seen_at: "2026-11-07T01:00:00.000Z" })], NOW);
+  assert.equal(offline.send?.label, "Send to Hermes");
+  assert.equal(offline.send?.enabled, false);
+  assert.match(offline.send?.title ?? "", /last checked in 1h ago/);
+  assert.match(offline.warning ?? "", /Hermes is offline/);
+
+  const unserved = agentView(item({ project: "groomlocal" }), [runner()], NOW);
+  assert.equal(unserved.send?.label, "No agent for groomlocal");
+  assert.equal(unserved.send?.enabled, false);
+  assert.match(unserved.send?.title ?? "", /Install the dispatcher/);
+
+  assert.equal(agentView(item({ project: null }), [runner()], NOW).send, null);
+});
+
+test("a row offers no send button when the runners could not be read", () => {
+  assert.equal(agentView(item({ project: "tailor" }), null, NOW).send, null);
+});
+
+test("queued and running rows show a badge, the time since sent, and Take back, with no send button", () => {
+  const queued = agentView(delegated("queued"), [runner()], NOW);
+  assert.deepEqual(queued.badge, { text: "QUEUED · HERMES", className: "badge badge-denim" });
+  assert.equal(queued.sentAgo, "sent 30m ago");
+  assert.equal(queued.send, null);
+  assert.equal(queued.canRecall, true);
+  assert.equal(queued.warning, null);
+
+  const running = agentView(delegated("running", { delegation_ref: "job1" }), [runner()], NOW);
+  assert.equal(running.badge?.text, "HERMES WORKING");
+  assert.equal(running.sentAgo, "sent 30m ago");
+  assert.equal(running.canRecall, true);
+});
+
+test("a queued row says so when its runner is offline", () => {
+  const view = agentView(delegated("queued"), [runner({ last_seen_at: "2026-11-07T00:30:00.000Z" })], NOW);
+  assert.equal(view.warning, "Hermes is offline. It last checked in 2h ago.");
+});
+
+test("returned and failed rows show the note, Send again and Take back", () => {
+  for (const [state, text] of [["returned", "RETURNED"], ["failed", "FAILED"]]) {
+    const view = agentView(delegated(state, { delegation_note: "Need a login." }), [runner()], NOW);
+    assert.equal(view.badge?.text, text);
+    assert.equal(view.note, "Hermes: Need a login.");
+    assert.deepEqual(view.send, { label: "Send again", enabled: true, title: "Send this item to Hermes" });
+    assert.equal(view.canRecall, true);
+  }
+});
+
+test("a done delegation looks like no delegation", () => {
+  const view = agentView(delegated("done", { delegation_note: "Fixed." }), [runner()], NOW);
+  assert.equal(view.badge, null);
+  assert.equal(view.note, null);
+  assert.equal(view.send?.label, "Send to Hermes");
+  assert.equal(view.canRecall, false);
 });

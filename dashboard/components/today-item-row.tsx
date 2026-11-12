@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { itemAction } from "@/app/today/actions";
-import type { Item, Priority } from "../../server/src/items/types.ts";
-import { ageLabel, isOverdueAgentItem, PRIORITY_LABEL, safeHref, type ItemAction } from "@/lib/today";
+import { delegateAction, itemAction, recallAction, type ActionResult } from "@/app/today/actions";
+import type { Item, Priority, Runner } from "../../server/src/items/types.ts";
+import { agentView, ageLabel, isOverdueAgentItem, PRIORITY_LABEL, safeHref, type ItemAction } from "@/lib/today";
 
 const ACTIONS: { action: ItemAction; label: string; failed: string; primary?: boolean }[] = [
   { action: "done", label: "Done", failed: "mark done", primary: true },
@@ -21,19 +21,23 @@ const PRIORITY_STYLE: Record<Priority, { badge: string; accent: string }> = {
 
 const MAX_EVIDENCE = 4;
 
-export default function TodayItemRow({ item, now, showProject }: { item: Item; now: Date; showProject: boolean }) {
-  const [pending, setPending] = useState<ItemAction | null>(null);
+type Pending = ItemAction | "send" | "recall";
+
+export default function TodayItemRow({ item, now, runners, showProject }: { item: Item; now: Date; runners: Runner[] | null; showProject: boolean }) {
+  const [pending, setPending] = useState<Pending | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [gone, setGone] = useState(false);
   if (gone) return null;
 
-  async function run(action: ItemAction, failed: string) {
-    setPending(action);
+  /** `leaves` is true when the row goes away on success. Send and take back keep the row, and the page refresh moves it to its section. */
+  async function run(key: Pending, failed: string, call: () => Promise<ActionResult>, leaves: boolean) {
+    setPending(key);
     setError(null);
     try {
-      const result = await itemAction(item.id, action);
-      if (result.ok) setGone(true);
-      else setError(`Could not ${failed}: ${result.error}`);
+      const result = await call();
+      if (result.ok) {
+        if (leaves) setGone(true);
+      } else setError(`Could not ${failed}: ${result.error}`);
     } catch (err) {
       setError(`Could not ${failed}: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -45,11 +49,14 @@ export default function TodayItemRow({ item, now, showProject }: { item: Item; n
   const evidence = item.evidence.slice(0, MAX_EVIDENCE);
   const style = PRIORITY_STYLE[item.priority];
   const overdue = isOverdueAgentItem(item, now);
+  const agent = agentView(item, runners, now);
 
   return (
     <div className="card today-row" style={{ borderLeft: `3px solid ${style.accent}` }}>
       <div className="today-row-head">
         <span className={style.badge}>{PRIORITY_LABEL[item.priority]}</span>
+        {agent.badge && <span className={agent.badge.className}>{agent.badge.text}</span>}
+        {agent.sentAgo && <span className="today-chip">{agent.sentAgo}</span>}
         {showProject && <span className="today-chip">{item.project ?? "general"}</span>}
         {item.owner === "agent" && <span className="today-chip">agent</span>}
         {overdue && <span className="badge badge-critical">OVERDUE</span>}
@@ -60,6 +67,8 @@ export default function TodayItemRow({ item, now, showProject }: { item: Item; n
 
       <div className="today-title">{item.title}</div>
       {item.why && <div className="today-why">{item.why}</div>}
+      {agent.note && <div className="today-agent-note">{agent.note}</div>}
+      {agent.warning && <div className="today-agent-warning">{agent.warning}</div>}
 
       {evidence.length > 0 && (
         <div className="today-evidence">
@@ -87,7 +96,7 @@ export default function TodayItemRow({ item, now, showProject }: { item: Item; n
             type="button"
             className={`today-btn${primary ? " today-btn-primary" : ""}`}
             disabled={pending !== null}
-            onClick={() => run(action, failed)}
+            onClick={() => run(action, failed, () => itemAction(item.id, action), true)}
           >
             {pending === action ? "…" : label}
           </button>
@@ -96,6 +105,31 @@ export default function TodayItemRow({ item, now, showProject }: { item: Item; n
           <a className="today-btn today-btn-link" href={href} target="_blank" rel="noreferrer">
             Open link
           </a>
+        )}
+        {(agent.send || agent.canRecall) && (
+          <span className="today-actions-agent">
+            {agent.send && (
+              <button
+                type="button"
+                className="today-btn today-btn-agent"
+                title={agent.send.title}
+                aria-disabled={!agent.send.enabled || pending !== null}
+                onClick={() => agent.send?.enabled && pending === null && run("send", "send", () => delegateAction(item.id), false)}
+              >
+                {pending === "send" ? "…" : agent.send.label}
+              </button>
+            )}
+            {agent.canRecall && (
+              <button
+                type="button"
+                className="today-btn"
+                aria-disabled={pending !== null}
+                onClick={() => pending === null && run("recall", "take back", () => recallAction(item.id), false)}
+              >
+                {pending === "recall" ? "…" : "Take back"}
+              </button>
+            )}
+          </span>
         )}
       </div>
 

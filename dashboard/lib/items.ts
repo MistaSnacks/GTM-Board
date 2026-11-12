@@ -1,6 +1,6 @@
 import { createItemStore } from "../../server/src/items/store.ts";
 import { createSupabaseItemsDb, type ItemsClient } from "../../server/src/items/supabase-db.ts";
-import type { Item } from "../../server/src/items/types.ts";
+import type { Item, Runner } from "../../server/src/items/types.ts";
 import { getProjectId } from "./data";
 import { supabase } from "./supabase";
 
@@ -19,3 +19,10 @@ export function listOpenItems(): Promise<Item[]> {
 }
 
 export const updateItem = itemStore.updateItem;
+
+export function listRunners(): Promise<Runner[]> {
+  return itemStore.listRunners();
+}
+
+export const delegateItem = itemStore.delegateItem;
+export const recallItem = itemStore.recallItem;
