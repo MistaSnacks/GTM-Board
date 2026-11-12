@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Runs the dispatcher of this machine's Hermes every minute. It hands queued Today items to Hermes.
+  Do not copy this file by hand. scripts/install-dispatcher.sh fills the paths and loads the job.
+  Remove: launchctl bootout gui/$(id -u)/com.gtmboard.dispatch
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.gtmboard.dispatch</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>{{REPO}}/server/node_modules/.bin/tsx</string>
+    <string>{{REPO}}/scripts/dispatch.ts</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>{{REPO}}</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>{{PATH}}</string>
+    <key>GTM_HOME</key>
+    <string>{{REPO}}</string>
+  </dict>
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>Nice</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>{{HOME}}/Library/Logs/gtm-board-dispatch.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{HOME}}/Library/Logs/gtm-board-dispatch.log</string>
+</dict>
+</plist>

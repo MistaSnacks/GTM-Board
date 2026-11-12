@@ -1,0 +1,7 @@
+{
+  "runner": "hermes-mac",
+  "label": "Hermes",
+  "hermesHome": "/Users/admin/.hermes",
+  "hermesBin": "/Users/admin/.local/bin/hermes",
+  "projects": { "tailor": { "workdir": "/Users/admin/tailor-ops" } }
+}

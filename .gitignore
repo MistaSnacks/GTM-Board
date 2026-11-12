@@ -11,3 +11,4 @@ projects/*/.env
 .DS_Store
 .next/
 .vercel
+dispatch.local.json

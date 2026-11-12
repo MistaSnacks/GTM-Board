@@ -4,5 +4,5 @@
     "rootDir": "..",
     "typeRoots": ["../server/node_modules/@types"]
   },
-  "include": ["collect.ts"]
+  "include": ["collect.ts", "dispatch.ts"]
 }
