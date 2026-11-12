@@ -1,11 +1,14 @@
+import { sendTarget } from "./runners.ts";
 import {
   parseItemInput,
+  type DelegationState,
   type Item,
   type ItemInput,
   type ItemKind,
   type ItemOwner,
   type ItemStatus,
   type Priority,
+  type Runner,
 } from "./types.ts";
 
 export interface ItemFilter {
@@ -16,6 +19,8 @@ export interface ItemFilter {
   kind?: ItemKind;
   owner?: ItemOwner;
   statuses?: ItemStatus[];
+  delegated_to?: string;
+  delegation_state?: DelegationState;
 }
 
 export type NewItem = Pick<
@@ -49,6 +54,11 @@ export type ItemPatch = Partial<
     | "snoozed_until"
     | "closed_reason"
     | "closed_at"
+    | "delegated_to"
+    | "delegation_state"
+    | "delegation_ref"
+    | "delegation_note"
+    | "delegated_at"
   >
 >;
 
@@ -57,6 +67,8 @@ export interface ItemsDb {
   select(filter: ItemFilter): Promise<Item[]>;
   insert(row: NewItem): Promise<Item>;
   update(id: string, patch: ItemPatch): Promise<Item>;
+  selectRunners(): Promise<Runner[]>;
+  upsertRunner(runner: Runner): Promise<void>;
 }
 
 /** The allowed status moves. Every status change in this file goes through `planMove`. */
@@ -100,6 +112,70 @@ function planMove(item: Item, to: ItemStatus, now: Date, snoozedUntil?: string |
   if (to === "snoozed") assertSnoozeTime(snoozedUntil, now);
   else if (snoozedUntil != null) throw new Error("snoozed_until applies only when the status is snoozed");
   return ENTER[to]({ now: now.toISOString(), snoozed_until: snoozedUntil ?? null });
+}
+
+type DelegationEnd = DelegationState | "none";
+
+/** The allowed delegation moves. Every delegation change in this file goes through `planDelegation`. */
+export const DELEGATION_TRANSITIONS: Record<DelegationEnd, readonly DelegationEnd[]> = {
+  none: ["queued"],
+  queued: ["running", "failed", "none"],
+  running: ["done", "returned", "failed", "none"],
+  returned: ["queued", "none"],
+  failed: ["queued", "none"],
+  done: ["queued", "none"],
+};
+
+/** What each target state needs to enter it. */
+interface DelegationEntry {
+  none: Record<string, never>;
+  queued: { runner: string; now: string };
+  running: { ref: string };
+  done: { note: string };
+  returned: { note: string };
+  failed: { note: string };
+}
+
+const CLEARED: ItemPatch = {
+  delegated_to: null,
+  delegation_state: null,
+  delegation_ref: null,
+  delegation_note: null,
+  delegated_at: null,
+};
+
+const ENTER_DELEGATION: { [To in DelegationEnd]: (entry: DelegationEntry[To]) => ItemPatch } = {
+  none: () => CLEARED,
+  queued: ({ runner, now }) => ({
+    delegated_to: runner,
+    delegation_state: "queued",
+    delegation_ref: null,
+    delegation_note: null,
+    delegated_at: now,
+  }),
+  running: ({ ref }) => ({ delegation_state: "running", delegation_ref: ref }),
+  done: ({ note }) => ({ delegation_state: "done", delegation_note: note }),
+  returned: ({ note }) => ({ delegation_state: "returned", delegation_note: note }),
+  failed: ({ note }) => ({ delegation_state: "failed", delegation_note: note }),
+};
+
+function planDelegation<To extends DelegationEnd>(item: Item, to: To, entry: DelegationEntry[To]): ItemPatch {
+  const from = item.delegation_state ?? "none";
+  if (!DELEGATION_TRANSITIONS[from].includes(to)) {
+    throw new Error(`Cannot move the delegation of item ${item.id} from ${from} to ${to}`);
+  }
+  return ENTER_DELEGATION[to](entry);
+}
+
+export const NOTE_MAX = 500;
+
+export const REPORT_OUTCOMES = ["done", "returned", "failed"] as const;
+export type ReportOutcome = (typeof REPORT_OUTCOMES)[number];
+
+function cleanNote(note: string): string {
+  const trimmed = note.trim();
+  if (trimmed === "") throw new Error("A report needs a note");
+  return trimmed.length <= NOTE_MAX ? trimmed : `${trimmed.slice(0, NOTE_MAX - 1).trimEnd()}…`;
 }
 
 const CLOSED: ReadonlySet<ItemStatus> = new Set(["done", "dismissed"]);
@@ -167,6 +243,12 @@ export interface UpdatePatch {
   due_at?: string | null;
 }
 
+export interface RunnerHeartbeat {
+  name: string;
+  label: string;
+  projects: string[];
+}
+
 export interface ItemStoreDeps {
   db: ItemsDb;
   /** Slug to gtm_projects id. Throws for an unknown slug. */
@@ -231,6 +313,12 @@ export function createItemStore({ db, resolveProject, now: clock = () => new Dat
     return { result: { id: existing.id, created: false, closed: true }, outcome: "skipped_closed" };
   }
 
+  async function getItem(id: string): Promise<Item> {
+    const [item] = await db.select({ ids: [id] });
+    if (!item) throw new Error(`Item not found: ${id}`);
+    return item;
+  }
+
   async function findExisting(keys: string[]): Promise<Map<string, Item>> {
     const rows = keys.length ? await db.select({ dedupe_keys: keys }) : [];
     return new Map(rows.map((row) => [row.dedupe_key, row]));
@@ -287,8 +375,7 @@ export function createItemStore({ db, resolveProject, now: clock = () => new Dat
     },
 
     async updateItem(id: string, patch: UpdatePatch): Promise<Item> {
-      const [item] = await db.select({ ids: [id] });
-      if (!item) throw new Error(`Item not found: ${id}`);
+      const item = await getItem(id);
       const now = clock();
 
       let change: ItemPatch = {};
@@ -304,6 +391,57 @@ export function createItemStore({ db, resolveProject, now: clock = () => new Dat
       if (Object.keys(change).length === 0) throw new Error("updateItem needs at least one field to change");
 
       return db.update(id, change);
+    },
+
+    listRunners(): Promise<Runner[]> {
+      return db.selectRunners();
+    },
+
+    async heartbeat({ name, label, projects }: RunnerHeartbeat): Promise<void> {
+      await db.upsertRunner({ name, label, projects, last_seen_at: clock().toISOString() });
+    },
+
+    async delegateItem(id: string): Promise<Item> {
+      const item = await getItem(id);
+      const now = clock();
+      if (effectiveStatus(item, now) !== "open") throw new Error(`Only an open item can go to an agent. This item is ${item.status}.`);
+      const target = sendTarget(item.project, await db.selectRunners(), now);
+      switch (target.kind) {
+        case "none":
+          throw new Error("A general item has no project, so no agent serves it");
+        case "unserved":
+          throw new Error(`No agent serves project ${target.project}. Install the dispatcher on the machine that serves it.`);
+        case "offline":
+          throw new Error(`${target.runner.label} is offline. It last checked in at ${target.runner.last_seen_at}.`);
+        case "ready":
+          return db.update(id, planDelegation(item, "queued", { runner: target.runner.name, now: now.toISOString() }));
+      }
+    },
+
+    async recallItem(id: string): Promise<Item> {
+      const item = await getItem(id);
+      if (item.delegation_state === null) throw new Error(`Item ${id} is not with an agent`);
+      return db.update(id, planDelegation(item, "none", {}));
+    },
+
+    async listDelegated(runner: string, state: DelegationState): Promise<Item[]> {
+      const rows = await db.select({ delegated_to: runner, delegation_state: state, statuses: ["open", "snoozed"] });
+      const now = clock();
+      return rows.filter((row) => effectiveStatus(row, now) === "open").sort(compareItems);
+    },
+
+    async startItem(id: string, ref: string): Promise<Item> {
+      const item = await getItem(id);
+      return db.update(id, planDelegation(item, "running", { ref }));
+    },
+
+    async reportItem(id: string, outcome: ReportOutcome, note: string): Promise<Item> {
+      const item = await getItem(id);
+      const now = clock();
+      if (CLOSED.has(item.status)) throw new Error(`Item ${id} is ${item.status}, so it takes no report`);
+      const delegation = planDelegation(item, outcome, { note: cleanNote(note) });
+      const close = outcome === "done" ? planMove(item, "done", now) : {};
+      return db.update(id, { ...delegation, ...close });
     },
   };
 }

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ItemFilter, ItemPatch, ItemsDb, NewItem } from "./store.ts";
-import type { Item } from "./types.ts";
+import type { Item, Runner } from "./types.ts";
 
 type ItemRow = Omit<Item, "project">;
 
@@ -29,6 +29,8 @@ export function createSupabaseItemsDb(client: ItemsClient): ItemsDb {
     if (filter.kind) query = query.eq("kind", filter.kind);
     if (filter.owner) query = query.eq("owner", filter.owner);
     if (filter.statuses) query = query.in("status", filter.statuses);
+    if (filter.delegated_to) query = query.eq("delegated_to", filter.delegated_to);
+    if (filter.delegation_state) query = query.eq("delegation_state", filter.delegation_state);
     const { data, error } = await query;
     if (error) throw new Error(`gtm_items read failed: ${error.message}`);
     return (data ?? []) as ItemRow[];
@@ -58,6 +60,17 @@ export function createSupabaseItemsDb(client: ItemsClient): ItemsDb {
       const { data, error } = await client.from("gtm_items").update(patch).eq("id", id).select().single();
       if (error) throw new Error(`gtm_items update failed for ${id}: ${error.message}`);
       return (await withProjectSlugs([data as ItemRow]))[0];
+    },
+
+    async selectRunners() {
+      const { data, error } = await client.from("gtm_runners").select("name, label, projects, last_seen_at");
+      if (error) throw new Error(`gtm_runners read failed: ${error.message}`);
+      return (data ?? []) as Runner[];
+    },
+
+    async upsertRunner(runner: Runner) {
+      const { error } = await client.from("gtm_runners").upsert(runner, { onConflict: "name" });
+      if (error) throw new Error(`gtm_runners write failed for ${runner.name}: ${error.message}`);
     },
   };
 }

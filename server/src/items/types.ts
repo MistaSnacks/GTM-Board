@@ -16,10 +16,13 @@ export const ITEM_STATUSES = ["open", "snoozed", "done", "dismissed"] as const;
 export const ITEM_OWNERS = ["camren", "agent"] as const;
 export const CLOSED_REASONS = ["done", "dismissed", "resolved"] as const;
 
+export const DELEGATION_STATES = ["queued", "running", "done", "returned", "failed"] as const;
+
 export type ItemKind = (typeof ITEM_KINDS)[number];
 export type ItemStatus = (typeof ITEM_STATUSES)[number];
 export type ItemOwner = (typeof ITEM_OWNERS)[number];
 export type ClosedReason = (typeof CLOSED_REASONS)[number];
+export type DelegationState = (typeof DELEGATION_STATES)[number];
 export type Priority = 0 | 1 | 2 | 3;
 
 export const TITLE_MAX = 90;
@@ -75,6 +78,19 @@ export interface Item {
   updated_at: string;
   last_seen_at: string;
   closed_at: string | null;
+  delegated_to: string | null;
+  delegation_state: DelegationState | null;
+  delegation_ref: string | null;
+  delegation_note: string | null;
+  delegated_at: string | null;
+}
+
+/** One agent install on one machine. One row of gtm_runners. */
+export interface Runner {
+  name: string;
+  label: string;
+  projects: string[];
+  last_seen_at: string;
 }
 
 const isoTime = z.string().datetime({ offset: true });

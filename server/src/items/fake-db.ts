@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { ItemFilter, ItemPatch, ItemsDb, NewItem } from "./store.ts";
-import type { Item } from "./types.ts";
+import type { Item, Runner } from "./types.ts";
 
 export interface FakeItemsDb extends ItemsDb {
   rows: Item[];
+  runners: Runner[];
 }
 
 /**
@@ -17,6 +18,7 @@ export function createFakeItemsDb(
   const clock = options.now ?? (() => new Date());
   const slugOf = (id: string | null) => Object.entries(projects).find(([, v]) => v === id)?.[0] ?? null;
   const rows: Item[] = [];
+  const runners: Runner[] = [];
 
   const matches = (row: Item, f: ItemFilter): boolean =>
     (!f.ids || f.ids.includes(row.id)) &&
@@ -25,10 +27,13 @@ export function createFakeItemsDb(
     (!f.project_id || row.project_id === f.project_id) &&
     (!f.kind || row.kind === f.kind) &&
     (!f.owner || row.owner === f.owner) &&
-    (!f.statuses || f.statuses.includes(row.status));
+    (!f.statuses || f.statuses.includes(row.status)) &&
+    (!f.delegated_to || row.delegated_to === f.delegated_to) &&
+    (!f.delegation_state || row.delegation_state === f.delegation_state);
 
   return {
     rows,
+    runners,
     async select(filter) {
       return rows.filter((row) => matches(row, filter)).map((row) => ({ ...row }));
     },
@@ -48,6 +53,11 @@ export function createFakeItemsDb(
         created_at: at,
         updated_at: at,
         closed_at: null,
+        delegated_to: null,
+        delegation_state: null,
+        delegation_ref: null,
+        delegation_note: null,
+        delegated_at: null,
       };
       rows.push(item);
       return { ...item };
@@ -57,6 +67,15 @@ export function createFakeItemsDb(
       if (!row) throw new Error(`no row with id ${id}`);
       Object.assign(row, patch, { updated_at: clock().toISOString() });
       return { ...row };
+    },
+    async selectRunners() {
+      return runners.map((runner) => ({ ...runner, projects: [...runner.projects] }));
+    },
+    async upsertRunner(runner: Runner) {
+      const copy = { ...runner, projects: [...runner.projects] };
+      const at = runners.findIndex((r) => r.name === runner.name);
+      if (at === -1) runners.push(copy);
+      else runners[at] = copy;
     },
   };
 }

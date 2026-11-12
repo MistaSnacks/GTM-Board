@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import type { ItemStore } from "./store.ts";
+import { REPORT_OUTCOMES, type ItemStore } from "./store.ts";
 import {
   ITEM_KINDS,
   ITEM_OWNERS,
@@ -24,7 +24,7 @@ const asText = (result: unknown) => ({
 
 const isoTime = z.string().datetime({ offset: true });
 
-/** The four item tools. They are pure board writes, so both MCP modes keep them. */
+/** The five item tools. They are pure board writes, so both MCP modes keep them. */
 export function registerItemTools(server: McpServer, store?: ItemStore): void {
   const getStore = () => (store ? Promise.resolve(store) : loadDefaultStore());
 
@@ -71,5 +71,16 @@ export function registerItemTools(server: McpServer, store?: ItemStore): void {
       due_at: isoTime.nullable().optional(),
     },
     async ({ id, ...patch }) => asText(await (await getStore()).updateItem(id, patch)),
+  );
+
+  server.tool(
+    "gtm_report_item",
+    "Report the result of a Today item that a person sent to you from the board. Call it one time, when you stop. Use outcome done when the task is complete, and the item closes. Use returned when a person must act or decide, and the item stays open with your note. Use failed when you tried and could not do it. The note is required: one or two sentences about what you did or what you need.",
+    {
+      id: z.string().uuid().describe("The item id from the task"),
+      outcome: z.enum(REPORT_OUTCOMES),
+      note: z.string().describe("One or two sentences: what you did, or what you need. Cut at 500 characters"),
+    },
+    async ({ id, outcome, note }) => asText(await (await getStore()).reportItem(id, outcome, note)),
   );
 }
