@@ -15,6 +15,8 @@ export interface DispatchDeps {
   hermes: HermesPort;
   /** The Hermes delivery target of a new job. */
   deliver: string;
+  /** The shell command of this checkout that reports an item. It goes into the task. */
+  reportCommand: string;
   dryRun: boolean;
 }
 
@@ -26,7 +28,7 @@ const label = (item: Item) => `"${item.title}" (${item.id})`;
  * so a tick that stops anywhere is safe to run again. One item that fails never stops the others.
  * With `dryRun` it reads, and it writes nothing: no heartbeat, no store change, no Hermes command.
  */
-export async function runDispatch(config: DispatchConfig, { store, hermes, deliver, dryRun }: DispatchDeps): Promise<DispatchLine[]> {
+export async function runDispatch(config: DispatchConfig, { store, hermes, deliver, reportCommand, dryRun }: DispatchDeps): Promise<DispatchLine[]> {
   const lines: DispatchLine[] = [];
   const say = (ok: boolean, text: string) => lines.push({ ok, text: dryRun ? `would: ${text}` : text });
   const attempt = async (item: Item, step: () => Promise<void>) => {
@@ -58,7 +60,7 @@ export async function runDispatch(config: DispatchConfig, { store, hermes, deliv
         return;
       }
       try {
-        await hermes.createJob({ name, prompt: buildPrompt(item), workdir, deliver });
+        await hermes.createJob({ name, prompt: buildPrompt(item, reportCommand), workdir, deliver });
       } catch (err) {
         await fail(item, message(err), true);
         return;

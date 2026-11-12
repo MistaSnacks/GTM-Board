@@ -42,7 +42,9 @@ async function main() {
   const { itemStore } = await import("../server/src/items/default-store.ts");
   const deliver = process.env.GTM_HERMES_DELIVER || "local";
 
-  const lines = await runDispatch(config, { store: itemStore, hermes: createHermesPort(config), deliver, dryRun });
+  const reportCommand = [path.resolve(here, "../server/node_modules/.bin/tsx"), path.resolve(here, "report-item.ts")].map((p) => `"${p}"`).join(" ");
+
+  const lines = await runDispatch(config, { store: itemStore, hermes: createHermesPort(config), deliver, reportCommand, dryRun });
 
   if (lines.length === 0) console.log(`[${stamp()}] ${config.runner}: nothing to do${dryRun ? " (dry run)" : ""}`);
   for (const line of lines) (line.ok ? console.log : console.error)(`[${stamp()}] ${config.runner}: ${line.text}`);

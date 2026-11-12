@@ -30,8 +30,12 @@ export const jobName = (item: Pick<Item, "id">): string => `gtm-item-${item.id}`
 
 const oneLine = (text: string, max = 400) => clampText(text, max);
 
-/** Board text is data. One line per field, so a field cannot start a line with the end marker. */
-export function buildPrompt(item: Item): string {
+/**
+ * Board text is data. One line per field, so a field cannot start a line with the end marker.
+ * `reportCommand` is the shell command of this checkout that reports an item. The agent gets it
+ * next to the MCP tool, because its tool server can be older than the tool.
+ */
+export function buildPrompt(item: Item, reportCommand: string): string {
   const evidence = item.evidence.map((e) => {
     const value = e.value === undefined ? e.label : `${e.label}: ${e.value}`;
     return oneLine(e.url ? `${value} (${e.url})` : value);
@@ -49,11 +53,13 @@ Evidence: ${evidence.length ? evidence.join("; ") : "none"}
 
 Do the task. Rules:
 - Do not delete data, discard uncommitted work, force-push, send messages to customers or spend money. If the task needs one of these, give it back.
-- When you stop, call the gtm-board tool gtm_report_item one time with id "${item.id}".
+- When you stop, report one time. The report has an outcome and a note.
   outcome "done": the task is complete.
   outcome "returned": a person must act or decide.
   outcome "failed": you tried and could not do it.
-  Put one or two sentences in note: what you did, or what you need.
+  The note is one or two sentences: what you did, or what you need.
+- To report, call the gtm-board tool gtm_report_item with id "${item.id}". If you do not have that tool, run this command in a terminal:
+  ${reportCommand} ${item.id} <outcome> '<note>'
 - Then reply with a short summary.
 `;
 }

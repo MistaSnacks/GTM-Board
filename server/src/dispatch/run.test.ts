@@ -7,9 +7,11 @@ import type { Item } from "../items/types.ts";
 import type { DispatchConfig } from "./config.ts";
 import { createFakeHermes, type FakeHermes } from "./fakes.ts";
 import { buildPrompt, jobName } from "./hermes.ts";
+import { parseReportArgs } from "./report.ts";
 import { runDispatch } from "./run.ts";
 
 const PROJECTS = { tailor: "p-tailor", groomlocal: "p-gl" };
+const REPORT = '"/repo/tsx" "/repo/scripts/report-item.ts"';
 const CONFIG: DispatchConfig = {
   runner: "hermes-mac",
   label: "Hermes",
@@ -22,7 +24,7 @@ function setup(hermes: FakeHermes = createFakeHermes()) {
   const t = new Date("2026-11-12T12:00:00.000Z");
   const db = createFakeItemsDb({ projects: PROJECTS, now: () => t });
   const store = createItemStore({ db, now: () => t, resolveProject: async (slug) => PROJECTS[slug as keyof typeof PROJECTS] });
-  const tick = (dryRun = false, config = CONFIG) => runDispatch(config, { store, hermes, deliver: "local", dryRun });
+  const tick = (dryRun = false, config = CONFIG) => runDispatch(config, { store, hermes, deliver: "local", reportCommand: REPORT, dryRun });
   const send = async (project: string | null = "tailor", key = "test:a") => {
     const { id } = await store.addItem({ kind: "task", title: "Fix the thing", source: "test", dedupe_key: key, project });
     await store.heartbeat({ name: "hermes-mac", label: "Hermes", projects: ["tailor", "groomlocal"] });
@@ -216,16 +218,30 @@ const ITEM: Item = {
   delegated_at: "2026-11-12T12:00:00.000Z",
 };
 
-test("buildPrompt holds the item id, the title and the report tool", () => {
-  const prompt = buildPrompt(ITEM);
+test("buildPrompt holds the item id, the title, the report tool and the report command", () => {
+  const prompt = buildPrompt(ITEM, REPORT);
   assert.ok(prompt.includes(`id "${ITEM.id}"`));
+  assert.ok(prompt.includes(`${REPORT} ${ITEM.id} <outcome>`));
   assert.ok(prompt.includes("Title: Fix the title tag"));
   assert.ok(prompt.includes("gtm_report_item"));
   assert.ok(prompt.includes("Evidence: Clicks: 12 (https://example.com/c); Page"));
 });
 
 test("buildPrompt keeps board text from forging the end marker", () => {
-  const lines = buildPrompt(ITEM).split("\n");
+  const lines = buildPrompt(ITEM, REPORT).split("\n");
   assert.equal(lines.filter((l) => l === "--- end task ---").length, 1);
   assert.equal(lines.filter((l) => l === "--- task ---").length, 1);
+});
+
+test("parseReportArgs takes the note quoted or as loose words", () => {
+  const id = "f0240d8a-851a-48b9-a518-bd0633635be2";
+  assert.deepEqual(parseReportArgs([id, "done", "Fixed the title tag."]), { id, outcome: "done", note: "Fixed the title tag." });
+  assert.deepEqual(parseReportArgs([id, "returned", "Need", "a", "login."]), { id, outcome: "returned", note: "Need a login." });
+});
+
+test("parseReportArgs rejects a bad id, an unknown outcome and an empty note", () => {
+  const id = "f0240d8a-851a-48b9-a518-bd0633635be2";
+  assert.throws(() => parseReportArgs(["not-an-id", "done", "x"]), /item id/);
+  assert.throws(() => parseReportArgs([id, "finished", "x"]), /outcome must be one of/);
+  assert.throws(() => parseReportArgs([id, "done", "  "]), /needs a note/);
 });

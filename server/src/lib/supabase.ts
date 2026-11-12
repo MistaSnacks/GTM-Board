@@ -2,8 +2,11 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const GTM_HOME = process.env.GTM_HOME || "/Users/admin/gtm-board";
+// A checkout that holds its own .env uses it, so a script works on any machine with no GTM_HOME.
+const checkout = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const GTM_HOME = process.env.GTM_HOME || (fs.existsSync(path.join(checkout, ".env")) ? checkout : "/Users/admin/gtm-board");
 
 // Load shared .env for GTM Board Supabase credentials
 const sharedEnv = path.join(GTM_HOME, ".env");
