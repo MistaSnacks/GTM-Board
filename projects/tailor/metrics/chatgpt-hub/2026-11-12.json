@@ -1,0 +1,35 @@
+{
+  "data_through": "2026-11-12",
+  "source": "hermes chrome read 2026-11-13",
+  "windows": {
+    "7d": {
+      "mentions": 774,
+      "mentions_increase": 477,
+      "mentions_change_pct": 160.61,
+      "clicks": 70,
+      "topics": [
+        {"topic": "Resumes and job applications", "mentions": 130, "share_pct": 39.9},
+        {"topic": "Resumes and job application profiles", "mentions": 69, "share_pct": 21.2},
+        {"topic": "Business vendors and service comparisons", "mentions": 34, "share_pct": 10.4},
+        {"topic": "Software architecture and product planning", "mentions": 20, "share_pct": 6.1},
+        {"topic": "Small business growth and customer acquisition", "mentions": 19, "share_pct": 5.8},
+        {"topic": "Other", "mentions": 54, "share_pct": 16.6}
+      ]
+    },
+    "28d": {
+      "mentions": 2149,
+      "mentions_increase": null,
+      "mentions_change_pct": null,
+      "clicks": 107,
+      "topics": [
+        {"topic": "Resumes and job applications", "mentions": 478, "share_pct": 41.6},
+        {"topic": "Resumes and job application profiles", "mentions": 239, "share_pct": 20.8},
+        {"topic": "Business vendors and service comparisons", "mentions": 92, "share_pct": 8.0},
+        {"topic": "Software architecture and product planning", "mentions": 77, "share_pct": 6.7},
+        {"topic": "Small business growth and customer acquisition", "mentions": 69, "share_pct": 6.0},
+        {"topic": "Other", "mentions": 195, "share_pct": 17.0}
+      ]
+    }
+  },
+  "agent_insights": {}
+}

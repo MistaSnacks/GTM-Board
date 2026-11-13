@@ -2,7 +2,14 @@
   "extends": "../server/tsconfig.json",
   "compilerOptions": {
     "rootDir": "..",
-    "typeRoots": ["../server/node_modules/@types"]
+    "typeRoots": [
+      "../server/node_modules/@types"
+    ]
   },
-  "include": ["collect.ts", "dispatch.ts", "report-item.ts"]
+  "include": [
+    "collect.ts",
+    "dispatch.ts",
+    "report-item.ts",
+    "log-chatgpt-hub.ts"
+  ]
 }

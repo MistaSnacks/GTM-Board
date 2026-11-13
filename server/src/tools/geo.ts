@@ -26,7 +26,7 @@ export async function geoScore(params: {
           project_id: projectId,
           channel: "geo",
           data: mergedData,
-          updated_at: new Date().toISOString(),
+          fetched_at: new Date().toISOString(),
         },
         { onConflict: "project_id,channel" }
       );
@@ -37,7 +37,7 @@ export async function geoScore(params: {
   // Read current geo metrics
   const { data: row, error } = await supabase
     .from("gtm_metrics")
-    .select("data, updated_at")
+    .select("data, fetched_at")
     .eq("project_id", projectId)
     .eq("channel", "geo")
     .single();
@@ -70,7 +70,7 @@ export async function geoScore(params: {
 
   return {
     project: params.project,
-    updated_at: row.updated_at,
+    updated_at: row.fetched_at,
     flat_metrics: flatMetrics,
     platforms,
   };
