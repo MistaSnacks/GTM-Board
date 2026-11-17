@@ -7,7 +7,7 @@ import {
   ITEM_STATUSES,
   itemInputSchema,
   itemInputShape,
-  prioritySchema,
+  updatePatchShape,
 } from "./types.ts";
 
 let defaultStore: Promise<ItemStore> | undefined;
@@ -21,8 +21,6 @@ function loadDefaultStore(): Promise<ItemStore> {
 const asText = (result: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
 });
-
-const isoTime = z.string().datetime({ offset: true });
 
 /** The five item tools. They are pure board writes, so both MCP modes keep them. */
 export function registerItemTools(server: McpServer, store?: ItemStore): void {
@@ -61,15 +59,8 @@ export function registerItemTools(server: McpServer, store?: ItemStore): void {
 
   server.tool(
     "gtm_update_item",
-    "Change the status, priority, owner, due_at or snooze time of one item. Allowed moves: open to snoozed, done or dismissed; snoozed to open, done or dismissed; done or dismissed to open. A snooze needs snoozed_until.",
-    {
-      id: z.string().uuid(),
-      status: z.enum(ITEM_STATUSES).optional(),
-      snoozed_until: isoTime.nullable().optional(),
-      priority: prioritySchema.optional(),
-      owner: z.enum(ITEM_OWNERS).optional(),
-      due_at: isoTime.nullable().optional(),
-    },
+    "Change the status, priority, owner, due_at or snooze time of one item, and the title, why, link or evidence of an open or snoozed item. Send only the fields that change. Evidence merges by label. Allowed moves: open to snoozed, done or dismissed; snoozed to open, done or dismissed; done or dismissed to open. A snooze needs snoozed_until.",
+    { id: z.string().uuid(), ...updatePatchShape },
     async ({ id, ...patch }) => asText(await (await getStore()).updateItem(id, patch)),
   );
 

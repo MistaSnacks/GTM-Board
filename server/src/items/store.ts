@@ -1,7 +1,9 @@
 import { sendTarget } from "./runners.ts";
 import {
   parseItemInput,
+  parseUpdatePatch,
   type DelegationState,
+  type Evidence,
   type Item,
   type ItemInput,
   type ItemKind,
@@ -9,7 +11,10 @@ import {
   type ItemStatus,
   type Priority,
   type Runner,
+  type UpdatePatch,
 } from "./types.ts";
+
+export type { UpdatePatch } from "./types.ts";
 
 export interface ItemFilter {
   ids?: string[];
@@ -229,24 +234,26 @@ export interface SyncResult {
 
 export interface ListQuery {
   project?: string;
+  source?: string;
   kind?: ItemKind;
   status?: ItemStatus;
   owner?: ItemOwner;
   limit?: number;
 }
 
-export interface UpdatePatch {
-  status?: ItemStatus;
-  snoozed_until?: string | null;
-  priority?: Priority;
-  owner?: ItemOwner;
-  due_at?: string | null;
-}
+/** Find one row by its id or by its dedupe key. */
+export type ItemRef = { id: string } | { dedupe_key: string };
 
 export interface RunnerHeartbeat {
   name: string;
   label: string;
   projects: string[];
+}
+
+/** A stored entry gives way to a patch entry with the same label. The others stay, in their order. */
+export function mergeEvidence(stored: Evidence[], patch: Evidence[]): Evidence[] {
+  const labels = new Set(patch.map((e) => e.label));
+  return [...stored.filter((e) => !labels.has(e.label)), ...patch];
 }
 
 export interface ItemStoreDeps {
@@ -365,6 +372,7 @@ export function createItemStore({ db, resolveProject, now: clock = () => new Dat
       const project_id = query.project ? await resolveProject(query.project) : undefined;
       const rows = await db.select({
         project_id,
+        source: query.source,
         kind: query.kind,
         owner: query.owner,
         statuses: STORED_STATUSES[status],
@@ -374,9 +382,24 @@ export function createItemStore({ db, resolveProject, now: clock = () => new Dat
       return query.limit ? listed.slice(0, query.limit) : listed;
     },
 
-    async updateItem(id: string, patch: UpdatePatch): Promise<Item> {
+    async findItem(ref: ItemRef): Promise<Item | null> {
+      const [item] = await db.select("id" in ref ? { ids: [ref.id] } : { dedupe_keys: [ref.dedupe_key] });
+      return item ?? null;
+    },
+
+    /**
+     * Status, snooze, priority, owner and due_at change on any row the moves allow. Title, why, link
+     * and evidence change only on a row that is open or snoozed, or that this patch reopens.
+     */
+    async updateItem(id: string, raw: UpdatePatch): Promise<Item> {
+      const patch = parseUpdatePatch(raw);
       const item = await getItem(id);
       const now = clock();
+
+      const content = (["title", "why", "link", "evidence"] as const).filter((field) => patch[field] !== undefined);
+      if (content.length && CLOSED.has(item.status) && patch.status !== "open") {
+        throw new Error(`Item ${id} is ${item.status}. Reopen it with status open before you change its ${content.join(", ")}.`);
+      }
 
       let change: ItemPatch = {};
       if (patch.status !== undefined) {
@@ -388,6 +411,10 @@ export function createItemStore({ db, resolveProject, now: clock = () => new Dat
       if (patch.priority !== undefined) change.priority = patch.priority;
       if (patch.owner !== undefined) change.owner = patch.owner;
       if (patch.due_at !== undefined) change.due_at = patch.due_at;
+      if (patch.title !== undefined) change.title = patch.title;
+      if (patch.why !== undefined) change.why = patch.why;
+      if (patch.link !== undefined) change.link = patch.link;
+      if (patch.evidence !== undefined) change.evidence = mergeEvidence(item.evidence, patch.evidence);
       if (Object.keys(change).length === 0) throw new Error("updateItem needs at least one field to change");
 
       return db.update(id, change);

@@ -325,3 +325,74 @@ test("listItems filters by project, kind, owner and status, and applies the limi
   assert.equal((await store.listItems({ project: "tailor" }))[0].project, "tailor");
   await assert.rejects(store.listItems({ project: "nope" }), /Project not found/);
 });
+
+test("updateItem changes title, why and link of an open row and keeps the fields it was not sent", async () => {
+  const { store, id } = await itemInStatus("open");
+  await store.updateItem(id, { priority: 1, why: "Old why", link: "https://example.com/old" });
+  const row = await store.updateItem(id, { title: "New title", why: "New why" });
+  assert.equal(row.title, "New title");
+  assert.equal(row.why, "New why");
+  assert.equal(row.link, "https://example.com/old");
+  assert.equal(row.priority, 1);
+  assert.equal((await store.updateItem(id, { link: "/today" })).link, "/today");
+});
+
+test("updateItem merges evidence by label: a label replaces its entry, a new label is added", async () => {
+  const { store, db } = setup();
+  const at = "2026-11-06T12:00:00.000Z";
+  const { id } = await store.addItem(
+    input({ evidence: [{ label: "report", url: "/r1", fetched_at: at }, { label: "gsc", value: 5, fetched_at: at }] }),
+  );
+  await store.updateItem(id, { evidence: [{ label: "report", url: "/r2", fetched_at: at }, { label: "retry", value: "ok", fetched_at: at }] });
+  assert.deepEqual(rowFor(db, "test:a").evidence, [
+    { label: "gsc", value: 5, fetched_at: at },
+    { label: "report", url: "/r2", fetched_at: at },
+    { label: "retry", value: "ok", fetched_at: at },
+  ]);
+});
+
+test("updateItem changes the content of a snoozed row, and of a closed row only when it reopens it", async () => {
+  const snoozed = await itemInStatus("snoozed");
+  assert.equal((await snoozed.store.updateItem(snoozed.id, { why: "Still waiting" })).status, "snoozed");
+
+  for (const status of ["done", "dismissed"] as const) {
+    const { store, id, db } = await itemInStatus(status);
+    await assert.rejects(store.updateItem(id, { why: "late" }), new RegExp(`is ${status}. Reopen it`));
+    assert.equal(rowFor(db, "test:a").why, null);
+    const row = await store.updateItem(id, { status: "open", why: "Back again" });
+    assert.equal(row.status, "open");
+    assert.equal(row.why, "Back again");
+  }
+});
+
+test("updateItem closes a row and records the final content in one call", async () => {
+  const { store, id } = await itemInStatus("open");
+  const row = await store.updateItem(id, { status: "done", why: "Shipped in the draft PR" });
+  assert.equal(row.status, "done");
+  assert.equal(row.why, "Shipped in the draft PR");
+});
+
+test("updateItem refuses an invalid or unknown patch field and changes nothing", async () => {
+  const { store, id, db } = await itemInStatus("open");
+  const before = { ...rowFor(db, "test:a") };
+  await assert.rejects(store.updateItem(id, { title: "x".repeat(91) }), /Invalid patch: title/);
+  await assert.rejects(store.updateItem(id, { link: "javascript:alert(1)" }), /Invalid patch: link/);
+  await assert.rejects(store.updateItem(id, { evidence: [{ label: "x" }] } as never), /Invalid patch: evidence\.0\.fetched_at/);
+  await assert.rejects(store.updateItem(id, { source: "other" } as never), /Invalid patch: .*source/);
+  assert.deepEqual(rowFor(db, "test:a"), before);
+});
+
+test("findItem finds a row by id or dedupe key, and returns null when none exists", async () => {
+  const { store } = setup();
+  const { id } = await store.addItem(input());
+  assert.equal((await store.findItem({ id }))?.dedupe_key, "test:a");
+  assert.equal((await store.findItem({ dedupe_key: "test:a" }))?.id, id);
+  assert.equal(await store.findItem({ dedupe_key: "test:none" }), null);
+});
+
+test("listItems filters by source", async () => {
+  const { store } = setup();
+  await store.addItem(input({ dedupe_key: "a", source: "seo:tailor" }));
+  await store.addItem(input({ dedupe_key: "b", source: "manual" }));
+  assert.deepEqual((await store.listItems({ source: "seo:tailor" })).map((i) => i.dedupe_key), ["a"]);
+});

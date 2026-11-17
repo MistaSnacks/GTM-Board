@@ -125,6 +125,32 @@ const itemInputObject = z.object({
 export const itemInputShape = itemInputObject.shape;
 export const itemInputSchema: z.ZodType<ItemInput> = itemInputObject;
 
+const updatePatchObject = z
+  .object({
+    status: z.enum(ITEM_STATUSES).optional(),
+    snoozed_until: isoTime.nullable().optional().describe("Needed with status snoozed. A snoozed row can move it alone"),
+    priority: prioritySchema.optional(),
+    owner: z.enum(ITEM_OWNERS).optional(),
+    due_at: isoTime.nullable().optional(),
+    title: itemInputObject.shape.title.optional(),
+    why: z.string().optional(),
+    link: link.optional(),
+    evidence: z
+      .array(evidenceSchema)
+      .optional()
+      .describe("Merged by label: an entry replaces the stored entry with the same label, and a new label is added"),
+  })
+  .strict();
+
+export const updatePatchShape = updatePatchObject.shape;
+export type UpdatePatch = z.infer<typeof updatePatchObject>;
+
+export function parseUpdatePatch(raw: unknown): UpdatePatch {
+  const result = updatePatchObject.safeParse(raw);
+  if (!result.success) throw new Error(`Invalid patch: ${formatZodError(result.error)}`);
+  return result.data;
+}
+
 export function formatZodError(error: z.ZodError, prefix = ""): string {
   return error.issues
     .map((issue) => `${prefix}${issue.path.join(".") || "(root)"}: ${issue.message}`)
