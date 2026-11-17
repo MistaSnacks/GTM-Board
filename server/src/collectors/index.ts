@@ -10,8 +10,8 @@ import type { CollectDeps } from "./util.ts";
 export interface CollectorModule {
   /** The `source` of every item the module returns. */
   source: string;
-  /** `sync` replaces the open items of the source. `add` only upserts. */
-  mode: "sync" | "add";
+  /** `sync` replaces the open items of the source. `rotate` keeps one open row for each recurring template. */
+  mode: "sync" | "rotate";
   collect(config: CollectorConfig, deps?: CollectDeps): Promise<ItemInput[]>;
 }
 

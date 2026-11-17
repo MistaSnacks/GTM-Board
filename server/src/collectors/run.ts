@@ -1,9 +1,14 @@
-import type { AddResult, ItemStore, SyncResult } from "../items/store.ts";
+import type { ItemStore, RotateResult, SyncResult } from "../items/store.ts";
 import type { ItemInput } from "../items/types.ts";
 import type { CollectorConfig } from "./config.ts";
-import { COLLECTORS, type CollectorName } from "./index.ts";
+import { COLLECTORS, type CollectorModule, type CollectorName } from "./index.ts";
 
-export type WriteStore = Pick<ItemStore, "addItem" | "syncItems">;
+export type WriteStore = Pick<ItemStore, "syncItems" | "rotateRecurring">;
+
+const WRITE: Record<CollectorModule["mode"], (store: WriteStore, source: string, items: ItemInput[]) => Promise<SyncResult | RotateResult>> = {
+  sync: (store, source, items) => store.syncItems({ source, items, complete: true }),
+  rotate: (store, _source, items) => store.rotateRecurring(items),
+};
 
 export interface SourceReport {
   name: CollectorName;
@@ -11,7 +16,7 @@ export interface SourceReport {
   ok: boolean;
   items: ItemInput[];
   /** Set when the source read and wrote its data. */
-  written?: SyncResult | { added: AddResult[] };
+  written?: SyncResult | RotateResult;
   error?: string;
 }
 
@@ -39,14 +44,7 @@ export async function runCollectors(
       continue;
     }
     try {
-      const { store } = options;
-      if (store && collector.mode === "sync") {
-        report.written = await store.syncItems({ source: collector.source, items: report.items, complete: true });
-      } else if (store) {
-        const added: AddResult[] = [];
-        for (const item of report.items) added.push(await store.addItem(item));
-        report.written = { added };
-      }
+      if (options.store) report.written = await WRITE[collector.mode](options.store, collector.source, report.items);
       report.ok = true;
     } catch (err) {
       report.error = `write failed: ${message(err)}`;

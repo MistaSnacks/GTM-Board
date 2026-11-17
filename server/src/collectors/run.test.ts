@@ -9,9 +9,9 @@ import { runCollectors, type WriteStore } from "./run.ts";
 function spyStore() {
   const calls: { op: string; arg: unknown }[] = [];
   const store: WriteStore = {
-    async addItem(item) {
-      calls.push({ op: "addItem", arg: item });
-      return { id: item.dedupe_key, created: true };
+    async rotateRecurring(items) {
+      calls.push({ op: "rotateRecurring", arg: items });
+      return { source: "rule:recurring", created: items.map((i) => i.dedupe_key), updated: [], reopened: [], skipped_closed: [], held: [], resolved: [] };
     },
     async syncItems(request) {
       calls.push({ op: "syncItems", arg: request });
@@ -62,12 +62,12 @@ test("a sync source calls syncItems with its source and complete: true, even for
   assert.deepEqual(calls, [{ op: "syncItems", arg: { source: "collector:hermes", items: [], complete: true } }]);
 });
 
-test("recurring uses addItem for each item and never syncItems", async () => {
+test("recurring rotates its six items in one call and never syncs", async () => {
   const { store, calls } = spyStore();
   const [report] = await runCollectors(["recurring"], config(), { store, now: NOW });
   assert.equal(report.ok, true);
-  assert.equal(calls.length, 6);
-  assert.ok(calls.every((c) => c.op === "addItem"));
+  assert.deepEqual(calls.map((c) => c.op), ["rotateRecurring"]);
+  assert.equal((calls[0].arg as unknown[]).length, 6);
 });
 
 test("with no store (dry run) the items come back and nothing is written", async () => {
@@ -79,7 +79,7 @@ test("with no store (dry run) the items come back and nothing is written", async
 
 test("a store error is reported as a write failure", async () => {
   const store: WriteStore = {
-    async addItem() {
+    async rotateRecurring() {
       throw new Error("db down");
     },
     async syncItems() {

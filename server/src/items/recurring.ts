@@ -7,6 +7,8 @@ import type { ItemInput, ItemOwner, Priority } from "./types.ts";
 /** Daily and weekly periods follow the calendar of the person who reads the board. */
 export const RECURRING_TIMEZONE = "America/Los_Angeles";
 
+export const RECURRING_SOURCE = "rule:recurring";
+
 export type RecurringPeriod = "daily" | "weekly";
 
 export interface RecurringTemplate {
@@ -76,6 +78,11 @@ export const RECURRING_TEMPLATES: readonly RecurringTemplate[] = [
   },
 ];
 
+/** The template id of a key `rule:<template_id>:<period>`, or null for any other key. */
+export function recurringTemplateId(dedupeKey: string): string | null {
+  return /^rule:([^:]+):[^:]+$/.exec(dedupeKey)?.[1] ?? null;
+}
+
 export interface CivilDate {
   year: number;
   month: number;
@@ -141,7 +148,7 @@ export function endOfDay(date: CivilDate, timeZone: string = RECURRING_TIMEZONE)
  * The items for the daily and ISO-week period that holds `now`. An item is due at the end of its
  * period: the Pacific day, or the Sunday of the ISO week. A weekly item exists for the whole week, so
  * a run that starts late still creates it and the item is not overdue before the week ends.
- * addItem keeps one row for each period.
+ * The store's rotateRecurring writes them and keeps one open row for each template.
  */
 export function generateRecurring(now: Date): ItemInput[] {
   const today = civilDate(now);
@@ -155,7 +162,7 @@ export function generateRecurring(now: Date): ItemInput[] {
     kind: "seo_task",
     title: t.title,
     why: t.why,
-    source: "rule:recurring",
+    source: RECURRING_SOURCE,
     dedupe_key: `rule:${t.id}:${periods[t.period].key}`,
     priority: t.priority,
     owner: t.owner,

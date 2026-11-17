@@ -39,11 +39,9 @@ const stamp = () => new Date().toISOString();
 function describe(report: SourceReport): string {
   if (!report.ok) return `${report.source} FAILED, ${report.error}`;
   if (!report.written) return `${report.source}: ${report.items.length} items`;
-  const { written } = report;
-  const detail =
-    "added" in written
-      ? `${written.added.length} added`
-      : (["created", "updated", "reopened", "skipped_closed", "resolved"] as const).map((k) => `${written[k].length} ${k}`).join(", ");
+  const detail = Object.entries(report.written)
+    .flatMap(([outcome, keys]) => (Array.isArray(keys) ? [`${keys.length} ${outcome}`] : []))
+    .join(", ");
   return `${report.source}: ${report.items.length} items, ${detail}`;
 }
 

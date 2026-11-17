@@ -1,3 +1,4 @@
+import { RECURRING_SOURCE, recurringTemplateId } from "./recurring.ts";
 import { sendTarget } from "./runners.ts";
 import {
   parseItemInput,
@@ -232,6 +233,14 @@ export interface SyncResult extends Record<UpsertOutcome | "resolved", string[]>
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+/**
+ * The keys of each outcome of rotateRecurring. `held` lists the new-period keys that were not written,
+ * because an older row of the same template is with an agent or came back from one.
+ */
+export interface RotateResult extends Record<UpsertOutcome | "held" | "resolved", string[]> {
+  source: string;
+}
+
 /** A write that stopped part way. `written` holds the keys that reached the table before the fault at `key`. */
 export class PartialWriteError<Written> extends Error {
   constructor(
@@ -242,6 +251,21 @@ export class PartialWriteError<Written> extends Error {
     super(`${key}: ${message(cause)}`);
   }
 }
+
+async function step<Written>(key: string, written: Written, write: () => Promise<unknown>): Promise<void> {
+  try {
+    await write();
+  } catch (err) {
+    throw new PartialWriteError(key, err, written);
+  }
+}
+
+/**
+ * A recurring row in these delegation states holds its template's slot: it is with an agent, or it came
+ * back with a note that a person must read. A new copy would only fail the same way.
+ */
+const HOLDS_SLOT: ReadonlySet<DelegationState> = new Set(["queued", "running", "returned", "failed"]);
+const holdsSlot = (row: Item) => row.delegation_state !== null && HOLDS_SLOT.has(row.delegation_state);
 
 export interface ListQuery {
   project?: string;
@@ -265,6 +289,11 @@ export interface RunnerHeartbeat {
 export function mergeEvidence(stored: Evidence[], patch: Evidence[]): Evidence[] {
   const labels = new Set(patch.map((e) => e.label));
   return [...stored.filter((e) => !labels.has(e.label)), ...patch];
+}
+
+/** A producer closes a row it no longer reports: done, with closed_reason resolved, so it is not mistaken for a person's done. */
+function resolve(row: Item, now: Date): ItemPatch {
+  return { ...planMove(row, "done", now), closed_reason: "resolved" };
 }
 
 export interface ItemStoreDeps {
@@ -365,15 +394,8 @@ export function createItemStore({ db, resolveProject, now: clock = () => new Dat
       const existing = await findExisting([...byKey.keys()]);
 
       const summary: SyncResult = { source: request.source, created: [], updated: [], reopened: [], skipped_closed: [], resolved: [] };
-      const step = async (key: string, write: () => Promise<void>) => {
-        try {
-          await write();
-        } catch (err) {
-          throw new PartialWriteError(key, err, summary);
-        }
-      };
       for (const input of byKey.values()) {
-        await step(input.dedupe_key, async () => {
+        await step(input.dedupe_key, summary, async () => {
           const { outcome } = await upsert(input, existing.get(input.dedupe_key), projectIds, now);
           summary[outcome].push(input.dedupe_key);
         });
@@ -381,10 +403,63 @@ export function createItemStore({ db, resolveProject, now: clock = () => new Dat
 
       const open = await db.select({ source: request.source, statuses: ["open", "snoozed"] });
       for (const row of open.filter((r) => !byKey.has(r.dedupe_key))) {
-        await step(row.dedupe_key, async () => {
-          await db.update(row.id, { ...planMove(row, "done", now), closed_reason: "resolved" });
-          summary.resolved.push(row.dedupe_key);
+        await step(row.dedupe_key, summary, () => db.update(row.id, resolve(row, now)));
+        summary.resolved.push(row.dedupe_key);
+      }
+      return summary;
+    },
+
+    /**
+     * Writes this period's recurring items and keeps one open row for each template. An open row of
+     * another period, or of a template that is gone, closes as resolved: no person closed it, so it is
+     * not "done", and nobody chose to drop it, so it is not "dismissed". A row that holds its slot
+     * (see HOLDS_SLOT) stays, and its template gets no new-period row while it is open. A row with any
+     * delegation state, and a snoozed row, never close by this rule. A current-period row that this
+     * rule closed opens again once its slot is free.
+     * Every step reads the table, so a second run, or a run after a crash, converges.
+     */
+    async rotateRecurring(raw: ItemInput[]): Promise<RotateResult> {
+      const current = new Map<string, ItemInput>();
+      raw.forEach((entry, idx) => {
+        const input = parseItemInput(entry, `items[${idx}].`);
+        const template = recurringTemplateId(input.dedupe_key);
+        if (input.source !== RECURRING_SOURCE || template === null) throw new Error(`${input.dedupe_key} is not a recurring item`);
+        if (current.has(template)) throw new Error(`Two items for template ${template}`);
+        current.set(template, input);
+      });
+      const inputs = [...current.values()];
+      const projectIds = await resolveProjectIds(inputs);
+      const now = clock();
+      const existing = await findExisting(inputs.map((i) => i.dedupe_key));
+      const slots = new Map<string, Item[]>();
+      for (const row of await db.select({ source: RECURRING_SOURCE, statuses: ["open", "snoozed"] })) {
+        const template = recurringTemplateId(row.dedupe_key);
+        if (template !== null) slots.set(template, [...(slots.get(template) ?? []), row]);
+      }
+
+      const summary: RotateResult = { source: RECURRING_SOURCE, created: [], updated: [], reopened: [], skipped_closed: [], held: [], resolved: [] };
+      const held = new Set<string>();
+      for (const [template, input] of current) {
+        const key = input.dedupe_key;
+        if ((slots.get(template) ?? []).some((row) => row.dedupe_key !== key && holdsSlot(row))) {
+          held.add(template);
+          summary.held.push(key);
+          continue;
+        }
+        const prior = existing.get(key);
+        await step(key, summary, async () => {
+          const { outcome } = await upsert({ ...input, reopen: prior?.closed_reason === "resolved" }, prior, projectIds, now);
+          summary[outcome].push(key);
         });
+      }
+
+      for (const [template, rows] of slots) {
+        for (const row of rows) {
+          const isCurrent = row.dedupe_key === current.get(template)?.dedupe_key && !held.has(template);
+          if (isCurrent || row.delegation_state !== null || effectiveStatus(row, now) === "snoozed") continue;
+          await step(row.dedupe_key, summary, () => db.update(row.id, resolve(row, now)));
+          summary.resolved.push(row.dedupe_key);
+        }
       }
       return summary;
     },
