@@ -1,3 +1,4 @@
+import { HUMAN_ONLY_NOTE, isHumanOnly } from "../items/recurring.ts";
 import type { Item } from "../items/types.ts";
 import type { ItemStore } from "../items/store.ts";
 import type { DispatchConfig } from "./config.ts";
@@ -46,6 +47,13 @@ export async function runDispatch(config: DispatchConfig, { store, hermes, deliv
   }
 
   async function take(item: Item) {
+    // Every path that queues a row ends here, including a direct write to the table, so this is the
+    // check that holds even when delegateItem is skipped or older.
+    if (isHumanOnly(item)) {
+      if (!dryRun) await store.reportItem(item.id, "returned", HUMAN_ONLY_NOTE);
+      say(true, `${label(item)} returned. ${HUMAN_ONLY_NOTE}`);
+      return;
+    }
     const workdir = item.project ? config.projects[item.project]?.workdir : undefined;
     if (!workdir) {
       await fail(item, `${config.label} has no workdir for project ${item.project ?? "none"}. Run scripts/install-dispatcher.sh on that machine with this project.`, false);

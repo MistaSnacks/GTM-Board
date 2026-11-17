@@ -19,6 +19,11 @@ export interface RecurringTemplate {
   priority: Priority;
   title: string;
   why: string;
+  /**
+   * The task posts, sends, publishes or submits something. Only Camren does that, so no agent may
+   * take it: delegateItem refuses it, and the dispatcher returns a queued row of it unstarted.
+   */
+  humanOnly?: boolean;
 }
 
 export const RECURRING_TEMPLATES: readonly RecurringTemplate[] = [
@@ -57,6 +62,7 @@ export const RECURRING_TEMPLATES: readonly RecurringTemplate[] = [
     priority: 1,
     title: "Post one helpful answer to a local groomer-price question",
     why: "Done when one answer is posted, and its URL and the community rule check are logged.",
+    humanOnly: true,
   },
   {
     id: "gl-price-harvest",
@@ -81,6 +87,20 @@ export const RECURRING_TEMPLATES: readonly RecurringTemplate[] = [
 /** The template id of a key `rule:<template_id>:<period>`, or null for any other key. */
 export function recurringTemplateId(dedupeKey: string): string | null {
   return /^rule:([^:]+):[^:]+$/.exec(dedupeKey)?.[1] ?? null;
+}
+
+/** The template of a row, from its dedupe key. Null for another key, and for a retired template. */
+export function recurringTemplateOf(dedupeKey: string): RecurringTemplate | null {
+  const id = recurringTemplateId(dedupeKey);
+  return RECURRING_TEMPLATES.find((t) => t.id === id) ?? null;
+}
+
+export const HUMAN_ONLY_NOTE =
+  "Only Camren may do this task, because it posts or sends. No agent started it. Do it yourself, then mark it done.";
+
+/** A row whose template is humanOnly. The key names the template, so no column is needed. */
+export function isHumanOnly(item: { dedupe_key: string }): boolean {
+  return recurringTemplateOf(item.dedupe_key)?.humanOnly === true;
 }
 
 export interface CivilDate {

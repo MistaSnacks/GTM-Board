@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createFakeItemsDb } from "../items/fake-db.ts";
 import { createItemStore } from "../items/store.ts";
+import { HUMAN_ONLY_NOTE } from "../items/recurring.ts";
 import { delegationOf } from "../items/delegation.ts";
 import type { Item } from "../items/types.ts";
 import type { DispatchConfig } from "./config.ts";
@@ -227,6 +228,13 @@ test("buildPrompt holds the item id, the title, the report tool and the report c
   assert.ok(prompt.includes("Evidence: Clicks: 12 (https://example.com/c); Page"));
 });
 
+test("buildPrompt tells the agent never to send, post, publish, deploy or submit, and to return drafts", () => {
+  const prompt = buildPrompt(ITEM, REPORT);
+  assert.match(prompt, /^- Never send, post, publish, deploy or submit anything/m);
+  assert.match(prompt, /Only Camren does these\. Write the draft/);
+  assert.match(prompt, /report "returned" with the draft's path/);
+});
+
 test("buildPrompt keeps board text from forging the end marker", () => {
   const lines = buildPrompt(ITEM, REPORT).split("\n");
   assert.equal(lines.filter((l) => l === "--- end task ---").length, 1);
@@ -244,4 +252,44 @@ test("parseReportArgs rejects a bad id, an unknown outcome and an empty note", (
   assert.throws(() => parseReportArgs(["not-an-id", "done", "x"]), /item id/);
   assert.throws(() => parseReportArgs([id, "finished", "x"]), /outcome must be one of/);
   assert.throws(() => parseReportArgs([id, "done", "  "]), /needs a note/);
+});
+
+/** A row queued by a direct write to the table, as an older dashboard or a hand edit would do. delegateItem never ran. */
+async function queuedByHand(store: ReturnType<typeof setup>["store"], db: ReturnType<typeof setup>["db"], key: string) {
+  const { id } = await store.addItem({ kind: "seo_task", title: "Post one answer", source: "rule:recurring", dedupe_key: key, project: "tailor" });
+  await db.update(id, { delegated_to: "hermes-mac", delegation_state: "queued", delegated_at: "2026-11-12T12:00:00.000Z" });
+  return id;
+}
+
+test("a queued row of a humanOnly template comes back returned with the note, and Hermes gets no job", async () => {
+  const { tick, row, hermes, store, db } = setup();
+  const id = await queuedByHand(store, db, "rule:gl-community-answer:2026-W46");
+  const lines = await tick();
+  assert.deepEqual(hermes.created, []);
+  assert.equal(delegationOf(row(id))?.state, "returned");
+  assert.equal(delegationOf(row(id))?.note, HUMAN_ONLY_NOTE);
+  assert.equal(row(id).status, "open");
+  assert.ok(lines.every((l) => l.ok));
+  assert.match(lines[0].text, /returned\. Only Camren may do this task/);
+
+  await tick();
+  assert.deepEqual(hermes.created, [], "a second tick starts nothing");
+});
+
+test("a humanOnly row is refused before any Hermes lookup, even when a job with its name exists", async () => {
+  const { tick, row, hermes, store, db } = setup();
+  const id = await queuedByHand(store, db, "rule:gl-community-answer:2026-W47");
+  hermes.jobs.push({ id: "old1", name: jobName({ id }) });
+  await tick();
+  assert.equal(delegationOf(row(id))?.state, "returned");
+  assert.equal(delegationOf(row(id))?.ref, null);
+});
+
+test("a dry tick says it would return a humanOnly row and writes nothing", async () => {
+  const { tick, row, hermes, store, db } = setup();
+  const id = await queuedByHand(store, db, "rule:gl-community-answer:2026-W47");
+  const lines = await tick(true);
+  assert.equal(delegationOf(row(id))?.state, "queued");
+  assert.deepEqual(hermes.created, []);
+  assert.match(lines[0].text, /^would: .* returned\./);
 });

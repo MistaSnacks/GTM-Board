@@ -1,4 +1,4 @@
-import { RECURRING_SOURCE, recurringTemplateId } from "./recurring.ts";
+import { HUMAN_ONLY_NOTE, isHumanOnly, RECURRING_SOURCE, recurringTemplateId } from "./recurring.ts";
 import { sendTarget } from "./runners.ts";
 import {
   parseItemInput,
@@ -125,7 +125,8 @@ type DelegationEnd = DelegationState | "none";
 /** The allowed delegation moves. Every delegation change in this file goes through `planDelegation`. */
 export const DELEGATION_TRANSITIONS: Record<DelegationEnd, readonly DelegationEnd[]> = {
   none: ["queued"],
-  queued: ["running", "failed", "none"],
+  // queued to returned: the dispatcher gives back a row that no agent may take (see isHumanOnly).
+  queued: ["running", "returned", "failed", "none"],
   running: ["done", "returned", "failed", "none"],
   returned: ["queued", "none"],
   failed: ["queued", "none"],
@@ -529,6 +530,7 @@ export function createItemStore({ db, resolveProject, now: clock = () => new Dat
       const item = await getItem(id);
       const now = clock();
       if (effectiveStatus(item, now) !== "open") throw new Error(`Only an open item can go to an agent. This item is ${item.status}.`);
+      if (isHumanOnly(item)) throw new Error(HUMAN_ONLY_NOTE);
       const target = sendTarget(item.project, await db.selectRunners(), now);
       switch (target.kind) {
         case "none":

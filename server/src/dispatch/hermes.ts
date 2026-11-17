@@ -53,6 +53,7 @@ Evidence: ${evidence.length ? evidence.join("; ") : "none"}
 
 Do the task. Rules:
 - Do not delete data, discard uncommitted work, force-push, send messages to customers or spend money. If the task needs one of these, give it back.
+- Never send, post, publish, deploy or submit anything: no message, email, comment, community answer, social post, release, deploy or form. Only Camren does these. Write the draft, save it in the workdir, and report "returned" with the draft's path in the note.
 - When you stop, report one time. The report has an outcome and a note.
   outcome "done": the task is complete.
   outcome "returned": a person must act or decide.

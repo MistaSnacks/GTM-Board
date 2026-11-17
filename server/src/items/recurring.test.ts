@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createFakeItemsDb } from "./fake-db.ts";
-import { generateRecurring } from "./recurring.ts";
+import { generateRecurring, isHumanOnly, RECURRING_TEMPLATES } from "./recurring.ts";
 import { createItemStore } from "./store.ts";
 import { parseItemInput } from "./types.ts";
 
@@ -98,4 +98,18 @@ test("adding the same period twice keeps one row, and a dismissed item is not re
 
   const nextWeek = await Promise.all(generateRecurring(new Date("2026-11-16T18:00:00Z")).map((i) => store.addItem(i)));
   assert.equal(nextWeek.filter((r) => r.created).length, 6);
+});
+
+test("only the templates that post or send are humanOnly, and Camren owns each of them", () => {
+  assert.deepEqual(RECURRING_TEMPLATES.filter((t) => t.humanOnly).map((t) => t.id), ["gl-community-answer"]);
+  for (const t of RECURRING_TEMPLATES.filter((t) => t.humanOnly)) assert.equal(t.owner, "camren", t.id);
+});
+
+test("isHumanOnly reads the template from the dedupe key", () => {
+  assert.equal(isHumanOnly({ dedupe_key: "rule:gl-community-answer:2026-W47" }), true);
+  assert.equal(isHumanOnly({ dedupe_key: "rule:gl-community-answer:2025-W01" }), true);
+  assert.equal(isHumanOnly({ dedupe_key: "rule:gl-visitors-daily:2026-11-16" }), false);
+  assert.equal(isHumanOnly({ dedupe_key: "rule:gl-data-floor:2026-W47" }), false, "a retired template");
+  assert.equal(isHumanOnly({ dedupe_key: "seo:groomlocal:gl-community-answer:x" }), false);
+  assert.equal(isHumanOnly({ dedupe_key: "rule:gl-community-answer" }), false);
 });

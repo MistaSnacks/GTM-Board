@@ -123,7 +123,6 @@ test("each illegal delegation move throws and changes nothing", async () => {
   const { store, db, id } = await sent();
   await assert.rejects(store.delegateItem(id), /Cannot move the delegation .* from queued to queued/);
   await assert.rejects(store.reportItem(id, "done", "n"), /from queued to done/);
-  await assert.rejects(store.reportItem(id, "returned", "n"), /from queued to returned/);
   await store.startItem(id, "job1");
   await assert.rejects(store.startItem(id, "job2"), /from running to running/);
   await assert.rejects(store.delegateItem(id), /from running to queued/);
@@ -221,4 +220,23 @@ test("sendTarget: with two runners a live one wins, then the lower name", () => 
   const deadA = runner("a", ["tailor"], 2 * RUNNER_STALE_MS);
   assert.deepEqual(sendTarget("tailor", [liveC, deadA, liveB], NOW), { kind: "ready", runner: liveB });
   assert.deepEqual(sendTarget("tailor", [deadA, runner("z", ["tailor"], 3 * RUNNER_STALE_MS)], NOW), { kind: "offline", runner: deadA });
+});
+
+test("a queued item can come back as returned, as the dispatcher returns a task no agent may take", async () => {
+  const { store, db, id } = await sent();
+  await store.reportItem(id, "returned", "Only Camren may do this.");
+  assert.deepEqual(stateOf(db, id), { runner: "hermes-mac", state: "returned", ref: null, note: "Only Camren may do this.", at: START });
+  assert.equal(db.rows[0].status, "open");
+});
+
+test("send refuses a row of a humanOnly template, of any period, and writes nothing", async () => {
+  const { store, db } = setup();
+  await store.heartbeat({ name: "hermes-mac", label: "Hermes", projects: ["groomlocal"] });
+  for (const key of ["rule:gl-community-answer:2026-W46", "rule:gl-community-answer:2026-W47"]) {
+    const { id } = await store.addItem(input({ project: "groomlocal", source: "rule:recurring", dedupe_key: key }));
+    await assert.rejects(store.delegateItem(id), /Only Camren may do this task/);
+    assert.equal(stateOf(db, id), null, key);
+  }
+  const { id: agentTask } = await store.addItem(input({ project: "groomlocal", source: "rule:recurring", dedupe_key: "rule:gl-visitors-daily:2026-11-12" }));
+  assert.equal(delegationOf(await store.delegateItem(agentTask))?.state, "queued");
 });
