@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# The items CLI of the GTM board. See scripts/items.ts. Works from any directory and from launchd.
+set -euo pipefail
+
+src="${BASH_SOURCE[0]}"
+while [ -L "$src" ]; do
+  dir="$(cd -P "$(dirname "$src")" && pwd)"
+  src="$(readlink "$src")"
+  [[ $src == /* ]] || src="$dir/$src"
+done
+here="$(cd -P "$(dirname "$src")" && pwd)"
+
+# launchd starts jobs with a short PATH, and tsx needs node.
+export PATH="${PATH:-/usr/bin:/bin}:/usr/local/bin:/opt/homebrew/bin"
+
+exec "$here/../server/node_modules/.bin/tsx" "$here/items.ts" "$@"

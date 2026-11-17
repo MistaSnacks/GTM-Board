@@ -10,6 +10,7 @@
     "collect.ts",
     "dispatch.ts",
     "report-item.ts",
+    "items.ts",
     "log-chatgpt-hub.ts"
   ]
 }
