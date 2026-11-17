@@ -1,6 +1,8 @@
 import type { ItemInput, ItemOwner, Priority } from "./types.ts";
 
-// Templates from harness-specs/06-today-items-contract.md, "Recurring templates".
+// Templates from harness-specs/06-today-items-contract.md, "Recurring templates". The SEO harness
+// computes the CTR, index, data-floor and weekly audit checks and syncs them as seo:<project> items,
+// so gl-ctr-opportunities, gl-index-sample, gl-data-floor, tl-audit-weekly and tl-gsc-weekly are gone.
 
 /** Daily and weekly periods follow the calendar of the person who reads the board. */
 export const RECURRING_TIMEZONE = "America/Los_Angeles";
@@ -26,33 +28,6 @@ export const RECURRING_TEMPLATES: readonly RecurringTemplate[] = [
     priority: 1,
     title: "Record yesterday's GroomLocal visitors by source",
     why: "Done when yesterday's visitors by source are on the board, with the 7-day sum against 226 (32 a day).",
-  },
-  {
-    id: "gl-ctr-opportunities",
-    project: "groomlocal",
-    period: "weekly",
-    owner: "agent",
-    priority: 2,
-    title: "Draft CTR rewrite proposals for GroomLocal pages",
-    why: "At most 5 rewrites in one draft PR, for pages at positions 5 to 20 with 100 or more impressions and a low CTR.",
-  },
-  {
-    id: "gl-index-sample",
-    project: "groomlocal",
-    period: "weekly",
-    owner: "agent",
-    priority: 2,
-    title: "Sample GroomLocal index coverage by page type",
-    why: "Done when the indexed share by page type is on the board and new crawled-not-indexed pages are listed.",
-  },
-  {
-    id: "gl-data-floor",
-    project: "groomlocal",
-    period: "weekly",
-    owner: "agent",
-    priority: 2,
-    title: "Count GroomLocal sitemap profiles below the data floor",
-    why: "Done when the count is on the board and no new thin URL entered the sitemap this week.",
   },
   {
     id: "gl-serp-spotcheck",
@@ -89,24 +64,6 @@ export const RECURRING_TEMPLATES: readonly RecurringTemplate[] = [
     priority: 2,
     title: "Save 5 real groomer menus from one new metro",
     why: "Done when at least 5 menus are saved, each with its source URL and date.",
-  },
-  {
-    id: "tl-audit-weekly",
-    project: "tailor",
-    period: "weekly",
-    owner: "agent",
-    priority: 2,
-    title: "Run the weekly TAILOR SEO audit",
-    why: "Done when the report is saved and errors are 0, or each error has its own item.",
-  },
-  {
-    id: "tl-gsc-weekly",
-    project: "tailor",
-    period: "weekly",
-    owner: "agent",
-    priority: 2,
-    title: "Record TAILOR Search Console clicks and impressions",
-    why: "Done when clicks, impressions, indexed pages and new queries are on the board.",
   },
   {
     id: "tl-ai-citation",

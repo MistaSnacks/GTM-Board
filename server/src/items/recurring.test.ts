@@ -7,28 +7,26 @@ import { parseItemInput } from "./types.ts";
 
 const keysAt = (iso: string) => generateRecurring(new Date(iso)).map((i) => i.dedupe_key);
 const dailyKey = (iso: string) => keysAt(iso).find((k) => k.startsWith("rule:gl-visitors-daily:"));
-const weeklyKey = (iso: string) => keysAt(iso).find((k) => k.startsWith("rule:tl-audit-weekly:"));
+const weeklyKey = (iso: string) => keysAt(iso).find((k) => k.startsWith("rule:gl-serp-spotcheck:"));
 
-test("the first set has one daily and ten weekly items that follow the contract table", () => {
+test("the set has one daily and five weekly items that follow the contract table", () => {
   const items = generateRecurring(new Date("2026-11-06T20:00:00Z"));
-  assert.equal(items.length, 11);
-  assert.equal(new Set(items.map((i) => i.dedupe_key)).size, 11);
+  assert.equal(items.length, 6);
+  assert.equal(new Set(items.map((i) => i.dedupe_key)).size, 6);
   const row = (id: string) => {
     const item = items.find((i) => i.dedupe_key.startsWith(`rule:${id}:`));
     assert.ok(item, id);
     return `${item.project} ${item.owner} p${item.priority}`;
   };
   assert.equal(row("gl-visitors-daily"), "groomlocal agent p1");
-  assert.equal(row("gl-ctr-opportunities"), "groomlocal agent p2");
-  assert.equal(row("gl-index-sample"), "groomlocal agent p2");
-  assert.equal(row("gl-data-floor"), "groomlocal agent p2");
   assert.equal(row("gl-serp-spotcheck"), "groomlocal agent p2");
   assert.equal(row("gl-other-engines"), "groomlocal camren p2");
   assert.equal(row("gl-community-answer"), "groomlocal camren p1");
   assert.equal(row("gl-price-harvest"), "groomlocal agent p2");
-  assert.equal(row("tl-audit-weekly"), "tailor agent p2");
-  assert.equal(row("tl-gsc-weekly"), "tailor agent p2");
   assert.equal(row("tl-ai-citation"), "tailor agent p3");
+  for (const retired of ["gl-ctr-opportunities", "gl-index-sample", "gl-data-floor", "tl-audit-weekly", "tl-gsc-weekly"]) {
+    assert.equal(items.some((i) => i.dedupe_key.startsWith(`rule:${retired}:`)), false, `${retired} is retired`);
+  }
   for (const item of items) {
     assert.equal(item.source, "rule:recurring");
     assert.equal(item.kind, "seo_task");
@@ -43,9 +41,9 @@ test("the daily key is the Pacific date, not the UTC date", () => {
 });
 
 test("the weekly key is the ISO week, and it turns over on Monday at midnight Pacific", () => {
-  assert.equal(weeklyKey("2026-11-06T20:00:00Z"), "rule:tl-audit-weekly:2026-W45");
-  assert.equal(weeklyKey("2026-11-09T07:59:00Z"), "rule:tl-audit-weekly:2026-W45");
-  assert.equal(weeklyKey("2026-11-09T08:00:00Z"), "rule:tl-audit-weekly:2026-W46");
+  assert.equal(weeklyKey("2026-11-06T20:00:00Z"), "rule:gl-serp-spotcheck:2026-W45");
+  assert.equal(weeklyKey("2026-11-09T07:59:00Z"), "rule:gl-serp-spotcheck:2026-W45");
+  assert.equal(weeklyKey("2026-11-09T08:00:00Z"), "rule:gl-serp-spotcheck:2026-W46");
 });
 
 test("ISO week keys hold across a year boundary", () => {
@@ -60,7 +58,7 @@ test("ISO week keys hold across a year boundary", () => {
     ["2021-01-03T20:00:00Z", "2020-W53"],
     ["2020-12-31T20:00:00Z", "2020-W53"],
   ];
-  for (const [at, week] of cases) assert.equal(weeklyKey(at), `rule:tl-audit-weekly:${week}`, at);
+  for (const [at, week] of cases) assert.equal(weeklyKey(at), `rule:gl-serp-spotcheck:${week}`, at);
 });
 
 test("the year boundary moves the daily key with the Pacific calendar", () => {
@@ -72,7 +70,7 @@ test("a daily item is due at the end of its Pacific day, and a weekly item at th
   const items = generateRecurring(new Date("2026-11-06T20:00:00Z"));
   const due = (id: string) => items.find((i) => i.dedupe_key.startsWith(`rule:${id}:`))?.due_at;
   assert.equal(due("gl-visitors-daily"), "2026-11-07T07:59:59.000Z");
-  assert.equal(due("tl-audit-weekly"), "2026-11-09T07:59:59.000Z");
+  assert.equal(due("gl-serp-spotcheck"), "2026-11-09T07:59:59.000Z");
 
   const summer = generateRecurring(new Date("2026-07-15T20:00:00Z"));
   assert.equal(summer.find((i) => i.dedupe_key.startsWith("rule:gl-visitors-daily:"))?.due_at, "2026-07-16T06:59:59.000Z");
@@ -84,12 +82,12 @@ test("adding the same period twice keeps one row, and a dismissed item is not re
   const monday = new Date("2026-11-09T18:00:00Z");
 
   const first = await Promise.all(generateRecurring(monday).map((i) => store.addItem(i)));
-  assert.equal(first.filter((r) => r.created).length, 11);
+  assert.equal(first.filter((r) => r.created).length, 6);
   const again = await Promise.all(generateRecurring(monday).map((i) => store.addItem(i)));
   assert.equal(again.filter((r) => r.created).length, 0);
-  assert.equal(db.rows.length, 11);
+  assert.equal(db.rows.length, 6);
 
-  const audit = db.rows.find((r) => r.dedupe_key === "rule:tl-audit-weekly:2026-W46");
+  const audit = db.rows.find((r) => r.dedupe_key === "rule:gl-serp-spotcheck:2026-W46");
   assert.ok(audit);
   await store.updateItem(audit.id, { status: "dismissed" });
   const wednesday = new Date("2026-11-11T18:00:00Z");
@@ -99,5 +97,5 @@ test("adding the same period twice keeps one row, and a dismissed item is not re
   assert.equal(db.rows.find((r) => r.dedupe_key === "rule:gl-visitors-daily:2026-11-11")?.status, "open");
 
   const nextWeek = await Promise.all(generateRecurring(new Date("2026-11-16T18:00:00Z")).map((i) => store.addItem(i)));
-  assert.equal(nextWeek.filter((r) => r.created).length, 11);
+  assert.equal(nextWeek.filter((r) => r.created).length, 6);
 });

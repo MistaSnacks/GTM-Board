@@ -66,7 +66,7 @@ test("recurring uses addItem for each item and never syncItems", async () => {
   const { store, calls } = spyStore();
   const [report] = await runCollectors(["recurring"], config(), { store, now: NOW });
   assert.equal(report.ok, true);
-  assert.equal(calls.length, 11);
+  assert.equal(calls.length, 6);
   assert.ok(calls.every((c) => c.op === "addItem"));
 });
 
