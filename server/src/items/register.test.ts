@@ -51,7 +51,7 @@ test("add, list, update and sync work through the MCP boundary and return JSON",
   assert.equal(updated.status, "done");
 
   const synced = JSON.parse((await call("gtm_sync_items", { source: "test", complete: true, items: [{ ...item, dedupe_key: "test:2" }] })).text);
-  assert.equal(synced.created, 1);
+  assert.deepEqual(synced.created, ["test:2"]);
   assert.equal(db.rows.length, 2);
 });
 

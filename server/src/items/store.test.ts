@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createFakeItemsDb } from "./fake-db.ts";
-import { createItemStore } from "./store.ts";
+import { createItemStore, PartialWriteError, type SyncResult } from "./store.ts";
 import type { ItemInput, ItemStatus } from "./types.ts";
 
 const PROJECTS = { tailor: "p-tailor", groomlocal: "p-gl" };
@@ -118,7 +118,7 @@ test("syncItems resolves open and snoozed rows of its source that are missing, a
 
   const res = await store.syncItems({ source: "s", complete: true, items: [input({ dedupe_key: "s:keep", source: "s" }), input({ dedupe_key: "s:new", source: "s" })] });
 
-  assert.deepEqual(res, { source: "s", created: 1, updated: 1, reopened: 0, skipped_closed: 0, resolved: 2 });
+  assert.deepEqual(res, { source: "s", created: ["s:new"], updated: ["s:keep"], reopened: [], skipped_closed: [], resolved: ["s:gone", "s:asleep"] });
   assert.equal(rowFor(db, "s:keep").status, "open");
   assert.equal(rowFor(db, "s:new").status, "open");
   for (const key of ["s:gone", "s:asleep"]) {
@@ -168,8 +168,22 @@ test("syncItems is idempotent", async () => {
   const items = [input({ dedupe_key: "s:a", source: "s" }), input({ dedupe_key: "s:b", source: "s" })];
   await store.syncItems({ source: "s", complete: true, items });
   const second = await store.syncItems({ source: "s", complete: true, items });
-  assert.deepEqual(second, { source: "s", created: 0, updated: 2, reopened: 0, skipped_closed: 0, resolved: 0 });
+  assert.deepEqual(second, { source: "s", created: [], updated: ["s:a", "s:b"], reopened: [], skipped_closed: [], resolved: [] });
   assert.equal(db.rows.length, 2);
+});
+
+test("syncItems that fails part way names the failing key and the keys it wrote, and closes nothing", async () => {
+  const { store, db } = setup();
+  await store.addItem(input({ dedupe_key: "s:old", source: "s" }));
+  const insert = db.insert.bind(db);
+  db.insert = async (row) => (row.dedupe_key === "s:c" ? Promise.reject(new Error("network down")) : insert(row));
+  const items = ["s:a", "s:b", "s:c", "s:d"].map((key) => input({ dedupe_key: key, source: "s" }));
+  const err = await store.syncItems({ source: "s", complete: true, items }).catch((e: unknown) => e);
+  assert.ok(err instanceof PartialWriteError);
+  assert.equal(err.key, "s:c");
+  assert.match(err.message, /^s:c: network down$/);
+  assert.deepEqual((err.written as SyncResult).created, ["s:a", "s:b"]);
+  assert.equal(rowFor(db, "s:old").status, "open");
 });
 
 test("a resolved row stays closed on a plain upsert and comes back with reopen", async () => {
@@ -180,11 +194,11 @@ test("a resolved row stays closed on a plain upsert and comes back with reopen",
   assert.equal(rowFor(db, "s:a").closed_reason, "resolved");
 
   const plain = await store.syncItems({ source: "s", complete: true, items: [item] });
-  assert.deepEqual(plain, { source: "s", created: 0, updated: 0, reopened: 0, skipped_closed: 1, resolved: 0 });
+  assert.deepEqual(plain, { source: "s", created: [], updated: [], reopened: [], skipped_closed: ["s:a"], resolved: [] });
   assert.equal(rowFor(db, "s:a").status, "done");
 
   const back = await store.syncItems({ source: "s", complete: true, items: [{ ...item, reopen: true }] });
-  assert.equal(back.reopened, 1);
+  assert.deepEqual(back.reopened, ["s:a"]);
   const row = rowFor(db, "s:a");
   assert.equal(row.status, "open");
   assert.equal(row.closed_reason, null);
@@ -202,8 +216,8 @@ test("reopen brings back a row a person marked done, and never one that was dism
     complete: true,
     items: [input({ dedupe_key: "s:a", source: "s", reopen: true }), input({ dedupe_key: "s:b", source: "s", reopen: true })],
   });
-  assert.equal(res.reopened, 1);
-  assert.equal(res.skipped_closed, 1);
+  assert.deepEqual(res.reopened, ["s:a"]);
+  assert.deepEqual(res.skipped_closed, ["s:b"]);
   assert.equal(rowFor(db, "s:a").status, "open");
   assert.equal(rowFor(db, "s:b").status, "dismissed");
 });

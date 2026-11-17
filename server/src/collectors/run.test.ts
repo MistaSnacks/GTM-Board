@@ -15,7 +15,7 @@ function spyStore() {
     },
     async syncItems(request) {
       calls.push({ op: "syncItems", arg: request });
-      return { source: request.source, created: request.items.length, updated: 0, reopened: 0, skipped_closed: 0, resolved: 0 };
+      return { source: request.source, created: request.items.map((i) => i.dedupe_key), updated: [], reopened: [], skipped_closed: [], resolved: [] };
     },
   };
   return { store, calls };

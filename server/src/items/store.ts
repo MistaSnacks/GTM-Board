@@ -223,13 +223,24 @@ export interface SyncInput {
   complete: true;
 }
 
-export interface SyncResult {
+export type UpsertOutcome = "created" | "updated" | "reopened" | "skipped_closed";
+
+/** The dedupe keys of each outcome. */
+export interface SyncResult extends Record<UpsertOutcome | "resolved", string[]> {
   source: string;
-  created: number;
-  updated: number;
-  reopened: number;
-  skipped_closed: number;
-  resolved: number;
+}
+
+const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+/** A write that stopped part way. `written` holds the keys that reached the table before the fault at `key`. */
+export class PartialWriteError<Written> extends Error {
+  constructor(
+    readonly key: string,
+    cause: unknown,
+    readonly written: Written,
+  ) {
+    super(`${key}: ${message(cause)}`);
+  }
 }
 
 export interface ListQuery {
@@ -292,7 +303,7 @@ export function createItemStore({ db, resolveProject, now: clock = () => new Dat
     existing: Item | undefined,
     projectIds: Map<string, string>,
     now: Date,
-  ): Promise<{ result: AddResult; outcome: "created" | "updated" | "reopened" | "skipped_closed" }> {
+  ): Promise<{ result: AddResult; outcome: UpsertOutcome }> {
     const seen = now.toISOString();
     if (!existing) {
       const row = await db.insert({
@@ -353,16 +364,27 @@ export function createItemStore({ db, resolveProject, now: clock = () => new Dat
       const now = clock();
       const existing = await findExisting([...byKey.keys()]);
 
-      const summary: SyncResult = { source: request.source, created: 0, updated: 0, reopened: 0, skipped_closed: 0, resolved: 0 };
+      const summary: SyncResult = { source: request.source, created: [], updated: [], reopened: [], skipped_closed: [], resolved: [] };
+      const step = async (key: string, write: () => Promise<void>) => {
+        try {
+          await write();
+        } catch (err) {
+          throw new PartialWriteError(key, err, summary);
+        }
+      };
       for (const input of byKey.values()) {
-        const { outcome } = await upsert(input, existing.get(input.dedupe_key), projectIds, now);
-        summary[outcome] += 1;
+        await step(input.dedupe_key, async () => {
+          const { outcome } = await upsert(input, existing.get(input.dedupe_key), projectIds, now);
+          summary[outcome].push(input.dedupe_key);
+        });
       }
 
       const open = await db.select({ source: request.source, statuses: ["open", "snoozed"] });
       for (const row of open.filter((r) => !byKey.has(r.dedupe_key))) {
-        await db.update(row.id, { ...planMove(row, "done", now), closed_reason: "resolved" });
-        summary.resolved += 1;
+        await step(row.dedupe_key, async () => {
+          await db.update(row.id, { ...planMove(row, "done", now), closed_reason: "resolved" });
+          summary.resolved.push(row.dedupe_key);
+        });
       }
       return summary;
     },
